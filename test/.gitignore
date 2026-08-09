@@ -1,5 +1,16 @@
+# Dependencies
 node_modules/
-screenshots/*.png
-logs/*.log
-logs/*.txt
-package-lock.json
+
+# Test artifacts (regenerated each run)
+test/screenshots/*.png
+test/logs/*.log
+test/logs/*.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# Misc
+*.pid
+*.tar.gz
+*.zip

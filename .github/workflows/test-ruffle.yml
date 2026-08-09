@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Cache Node modules ──
+      # ── Cache npm ──
       - name: Cache npm
         uses: actions/cache@v4
         with:
@@ -43,7 +43,7 @@ jobs:
       # ── Setup Node ──
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: test/package-lock.json
 
