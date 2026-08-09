@@ -9,8 +9,9 @@
         body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
         #game-container { position: relative; width: 1024px; height: 768px; max-width: 100vw; max-height: 100vh; aspect-ratio: 4/3; }
         #game-container object, #game-container ruffle-object { width: 100% !important; height: 100% !important; }
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 20px; text-align: center; z-index: 10; pointer-events: none; }
-        #status { position: fixed; bottom: 10px; right: 10px; color: #888; font-size: 11px; font-family: monospace; z-index: 100; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 20px; text-align: center; z-index: 5; pointer-events: none; opacity: 1; transition: opacity 1s; }
+        #loading.hidden { opacity: 0; }
+        #status { position: fixed; bottom: 10px; right: 10px; color: #666; font-size: 11px; font-family: monospace; z-index: 100; }
     </style>
 </head>
 <body>
@@ -39,53 +40,48 @@
         };
 
         function setStatus(msg) {
-            document.getElementById('status').textContent = msg;
-            document.getElementById('detail').textContent = msg;
+            var el = document.getElementById('status');
+            var det = document.getElementById('detail');
+            if (el) el.textContent = msg;
+            if (det) det.textContent = msg;
             console.log('[App]', msg);
         }
 
         function waitForSW() {
             return new Promise(function(resolve) {
                 if (!('serviceWorker' in navigator)) {
-                    setStatus('No SW support - loading without bypass');
                     resolve(false);
                     return;
                 }
                 setStatus('Registering service worker...');
                 navigator.serviceWorker.register('sw.js').then(function(reg) {
                     if (reg.active) {
-                        setStatus('Service worker active');
+                        setStatus('SW active');
                         resolve(true);
                         return;
                     }
                     var sw = reg.installing || reg.waiting;
                     if (!sw) {
-                        setStatus('SW already active');
+                        setStatus('SW active');
                         resolve(true);
                         return;
                     }
-                    setStatus('Waiting for service worker...');
+                    setStatus('Waiting for SW...');
                     sw.addEventListener('statechange', function() {
                         if (sw.state === 'activated') {
-                            setStatus('Service worker activated');
+                            setStatus('SW activated');
                             resolve(true);
                         }
                     });
-                    // Fallback: don't wait forever
-                    setTimeout(function() {
-                        setStatus('SW timeout - loading anyway');
-                        resolve(true);
-                    }, 5000);
+                    setTimeout(function() { resolve(true); }, 8000);
                 }).catch(function(err) {
-                    console.error('[SW] Error:', err);
-                    setStatus('SW error: ' + err.message);
                     resolve(false);
                 });
             });
         }
 
         function loadSWF() {
-            setStatus('Loading SWF (main_single.swf)...');
+            setStatus('Loading SWF...');
             var container = document.getElementById('game-container');
             var obj = document.createElement('object');
             obj.id = 'flash-object';
@@ -102,32 +98,16 @@
                 '<param name="allowNetworking" value="all" />' +
                 '<param name="base" value="." />';
             container.appendChild(obj);
-            setStatus('SWF loaded - waiting for Ruffle...');
 
-            // Check if Ruffle picks it up
-            var startTime = Date.now();
-            function check() {
-                if (obj.ruffle) {
-                    setStatus('Ruffle ready');
-                    setTimeout(function() {
-                        var loading = document.getElementById('loading');
-                        if (loading) loading.style.display = 'none';
-                    }, 3000);
-                } else if (Date.now() - startTime > 30000) {
-                    setStatus('Timeout - check console (F12)');
-                    document.getElementById('loading').innerHTML =
-                        '<p style="color:#ff6666">App not loading.<br>Open console (F12) for details.</p>';
-                } else {
-                    setTimeout(check, 500);
-                }
-            }
-            setTimeout(check, 1000);
+            // Hide loading text after 8s regardless (Ruffle shows its own UI)
+            setTimeout(function() {
+                var loading = document.getElementById('loading');
+                if (loading) loading.classList.add('hidden');
+                setStatus('Running');
+            }, 8000);
         }
 
-        // Main init: wait for SW, then load SWF
-        waitForSW().then(function() {
-            loadSWF();
-        });
+        waitForSW().then(loadSWF);
     </script>
 </body>
 </html>
