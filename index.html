@@ -12,9 +12,11 @@
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 20px; text-align: center; z-index: 5; pointer-events: none; opacity: 1; transition: opacity 1s; }
         #loading.hidden { opacity: 0; }
         #status { position: fixed; bottom: 10px; right: 10px; color: #666; font-size: 11px; font-family: monospace; z-index: 100; }
+        #debug-log { position: fixed; top: 10px; left: 10px; color: #0f0; font-size: 11px; font-family: monospace; z-index: 100; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px; pointer-events: none; }
     </style>
 </head>
 <body>
+    <div id="debug-log"></div>
     <div id="game-container">
         <div id="loading">
             <p>Loading Lexia Core5...</p>
@@ -32,29 +34,47 @@
             allowScriptAccess: true,
             allowNetworking: "all",
             upgradeToHttps: true,
-            logLevel: "info",
+            logLevel: "debug",
             base: ".",
             preloader: false,
             splashScreen: false,
             maxExecutionDuration: 60
         };
 
+        var debugEl = document.getElementById('debug-log');
+        function debugLog(msg) {
+            console.log('[App]', msg);
+            var line = document.createElement('div');
+            line.textContent = '> ' + msg;
+            debugEl.appendChild(line);
+            if (debugEl.children.length > 20) debugEl.removeChild(debugEl.firstChild);
+        }
+
         function setStatus(msg) {
             var el = document.getElementById('status');
             var det = document.getElementById('detail');
             if (el) el.textContent = msg;
             if (det) det.textContent = msg;
-            console.log('[App]', msg);
+            debugLog(msg);
         }
+
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'AMF_INTERCEPT') {
+                debugLog('SW intercepted: ' + event.data.op + ' (' + event.data.format + ')');
+            }
+        });
 
         function waitForSW() {
             return new Promise(function(resolve) {
                 if (!('serviceWorker' in navigator)) {
+                    debugLog('No SW support');
                     resolve(false);
                     return;
                 }
-                setStatus('Registering service worker...');
+                setStatus('Registering SW...');
                 navigator.serviceWorker.register('sw.js').then(function(reg) {
+                    debugLog('SW registered, state: ' + (reg.active ? 'active' : (reg.installing ? 'installing' : (reg.waiting ? 'waiting' : 'unknown'))));
                     if (reg.active) {
                         setStatus('SW active');
                         resolve(true);
@@ -66,8 +86,9 @@
                         resolve(true);
                         return;
                     }
-                    setStatus('Waiting for SW...');
+                    setStatus('Waiting SW...');
                     sw.addEventListener('statechange', function() {
+                        debugLog('SW state: ' + sw.state);
                         if (sw.state === 'activated') {
                             setStatus('SW activated');
                             resolve(true);
@@ -75,6 +96,7 @@
                     });
                     setTimeout(function() { resolve(true); }, 8000);
                 }).catch(function(err) {
+                    debugLog('SW error: ' + err.message);
                     resolve(false);
                 });
             });
@@ -98,12 +120,13 @@
                 '<param name="allowNetworking" value="all" />' +
                 '<param name="base" value="." />';
             container.appendChild(obj);
+            debugLog('SWF element created');
 
-            // Hide loading text after 8s regardless (Ruffle shows its own UI)
             setTimeout(function() {
                 var loading = document.getElementById('loading');
                 if (loading) loading.classList.add('hidden');
                 setStatus('Running');
+                debugLog('Loading hidden, SWF should be visible');
             }, 8000);
         }
 
