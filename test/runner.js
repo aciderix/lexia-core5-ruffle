@@ -1,14 +1,5 @@
 /**
  * Playwright test runner for Lexia Core5 Ruffle
- * 
- * Tests:
- *  - Page loads and Ruffle initializes
- *  - Service Worker registers and activates
- *  - SWF loads in Ruffle player
- *  - AMF gateway requests are intercepted by Service Worker
- *  - Screenshots at 5s, 15s, 30s, 45s, 60s, 75s, 90s
- *  - Console logs, network requests, and page errors captured
- *  - Summary report with pass/fail and metrics
  */
 
 const { chromium } = require('playwright');
@@ -35,35 +26,16 @@ async function run() {
 
     const browser = await chromium.launch({
         headless: true,
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-gpu',
-            '--disable-dev-shm-usage',
-            '--enable-unsafe-swiftshader'
-        ]
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--enable-unsafe-swiftshader']
     });
 
-    const context = await browser.newContext({
-        viewport: { width: 1280, height: 1024 },
-    });
-
+    const context = await browser.newContext({ viewport: { width: 1280, height: 1024 } });
     const page = await context.newPage();
 
     const state = {
-        errors: [],
-        warnings: [],
-        networkReqs: [],
-        amfReqs: [],
-        amfResponses: [],
-        swMessages: [],
-        swRegistered: false,
-        swActive: false,
-        swIntercepted: 0,
-        ruffleVersion: null,
-        swfLoaded: false,
-        swfError: null,
-        pageErrors: 0,
+        errors: [], warnings: [], networkReqs: [], amfReqs: [], amfResponses: [],
+        swMessages: [], swRegistered: false, swActive: false, swIntercepted: 0,
+        ruffleVersion: null, swfLoaded: false, swfError: null, pageErrors: 0,
     };
 
     // ── Console capture ──
@@ -75,8 +47,8 @@ async function run() {
 
         if (type === 'error') { state.errors.push(text); state.pageErrors++; }
         if (type === 'warning') state.warnings.push(text);
-        if (text.includes('Ruffle') && text.includes('version')) state.ruffleVersion = text;
-        if (text.includes('SWF loaded')) state.swfLoaded = true;
+        if (text.includes('version') && text.includes('nightly')) state.ruffleVersion = text.replace(/.*Version: /, '').replace(/ .*/, '').trim();
+        if (text.match(/SWF loaded/i) || text.match(/loadedmetadata/i)) state.swfLoaded = true;
         if (text.includes('SWF FAIL') || text.includes('SWF FAILED')) state.swfError = text;
         if (text.includes('[SW]')) {
             swLog.write(line);
@@ -115,14 +87,13 @@ async function run() {
             try {
                 const body = await res.body();
                 state.amfResponses.push({ url, status, size: body.length, ct });
-                networkLog.write(`[${ts()}] AMF response body: ${body.length} bytes, CT: ${ct}\n`);
+                networkLog.write(`[${ts()}] AMF response body: ${body.length} bytes\n`);
                 if (body.length > 0) {
-                    // Log first 200 bytes as hex for debugging
                     const hex = Buffer.from(body.slice(0, 200)).toString('hex');
-                    networkLog.write(`[${ts()}] AMF response hex (first 200B): ${hex}\n`);
+                    networkLog.write(`[${ts()}] AMF response hex: ${hex}\n`);
                 }
             } catch (e) {
-                networkLog.write(`[${ts()}] Could not read AMF response body: ${e.message}\n`);
+                networkLog.write(`[${ts()}] Could not read AMF response: ${e.message}\n`);
             }
         }
     });
@@ -131,7 +102,7 @@ async function run() {
     consoleLog.write(`[${ts()}] Navigating to ${BASE_URL}\n`);
     try {
         await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        consoleLog.write(`[${ts()}] Page loaded (domcontentloaded)\n`);
+        consoleLog.write(`[${ts()}] Page loaded\n`);
     } catch (e) {
         consoleLog.write(`[${ts()}] Navigation error: ${e.message}\n`);
         state.errors.push(`Navigation: ${e.message}`);
@@ -139,41 +110,46 @@ async function run() {
 
     // ── Wait for Service Worker ──
     try {
-        await page.waitForFunction(
-            () => navigator.serviceWorker !== undefined,
-            { timeout: 5000 }
-        ).catch(() => {});
-
+        await page.waitForFunction(() => navigator.serviceWorker !== undefined, { timeout: 5000 }).catch(() => {});
         state.swRegistered = await page.evaluate(() =>
-            navigator.serviceWorker?.getRegistrations?.()
-                .then(regs => regs.length > 0)
-                .catch(() => false)
+            navigator.serviceWorker?.getRegistrations?.().then(regs => regs.length > 0).catch(() => false)
         ).catch(() => false);
-
         state.swActive = await page.evaluate(() =>
-            navigator.serviceWorker?.controller !== null &&
-            navigator.serviceWorker?.controller !== undefined
+            navigator.serviceWorker?.controller !== null && navigator.serviceWorker?.controller !== undefined
         ).catch(() => false);
-
         consoleLog.write(`[${ts()}] SW registered: ${state.swRegistered}, active: ${state.swActive}\n`);
 
-        // Wait a bit more for SW to activate if registered but not active
         if (state.swRegistered && !state.swActive) {
-            consoleLog.write(`[${ts()}] Waiting for SW activation...\n`);
             for (let i = 0; i < 10; i++) {
                 await page.waitForTimeout(1000);
                 state.swActive = await page.evaluate(() =>
-                    navigator.serviceWorker?.controller !== null &&
-                    navigator.serviceWorker?.controller !== undefined
+                    navigator.serviceWorker?.controller !== null && navigator.serviceWorker?.controller !== undefined
                 ).catch(() => false);
-                if (state.swActive) {
-                    consoleLog.write(`[${ts()}] SW activated after ${(i+1)}s\n`);
-                    break;
-                }
+                if (state.swActive) { consoleLog.write(`[${ts()}] SW activated after ${i+1}s\n`); break; }
             }
         }
     } catch (e) {
         consoleLog.write(`[${ts()}] SW check error: ${e.message}\n`);
+    }
+
+    // ── Wait for Ruffle to initialize, then click the player ──
+    await page.waitForTimeout(3000);
+    try {
+        // Try clicking on the ruffle-player to trigger interaction
+        const clicked = await page.evaluate(() => {
+            const rp = document.getElementById('ruffle-player') || document.querySelector('ruffle-player');
+            if (rp) {
+                rp.click();
+                rp.focus();
+                // Try to play
+                if (rp.play) { try { rp.play(); } catch(e) {} }
+                return true;
+            }
+            return false;
+        });
+        consoleLog.write(`[${ts()}] Clicked ruffle-player: ${clicked}\n`);
+    } catch (e) {
+        consoleLog.write(`[${ts()}] Click failed: ${e.message}\n`);
     }
 
     // ── Screenshot schedule ──
@@ -191,36 +167,55 @@ async function run() {
 
         // Capture page log content
         try {
-            const logText = await page.evaluate(() => 
-                document.getElementById('log')?.textContent || ''
-            ).catch(() => '');
-            if (logText) {
-                consoleLog.write(`[${ts()}] --- Page log @ ${label} ---\n${logText}\n`);
-            }
+            const logText = await page.evaluate(() => document.getElementById('log')?.textContent || '').catch(() => '');
+            if (logText) consoleLog.write(`[${ts()}] --- Page log @ ${label} ---\n${logText}\n`);
         } catch (e) {}
 
-        // Capture Ruffle player state
+        // Capture Ruffle player state — INCLUDING shadow DOM
         try {
             const ruffleState = await page.evaluate(() => {
                 const p = document.getElementById('player');
-                const inner = p?.innerHTML?.substring(0, 300) || '';
-                const canvas = p?.querySelector('canvas');
                 const ruffleEl = p?.querySelector('ruffle-player, embed, object');
+                // Try to find canvas in shadow DOM
+                let canvas = null;
+                let canvasSize = null;
+                let shadowContent = null;
+                if (ruffleEl?.shadowRoot) {
+                    canvas = ruffleEl.shadowRoot.querySelector('canvas');
+                    canvasSize = canvas ? `${canvas.width}x${canvas.height}` : null;
+                    shadowContent = ruffleEl.shadowRoot.innerHTML?.substring(0, 200) || '';
+                }
+                // Also check direct children (non-shadow)
+                if (!canvas) {
+                    canvas = p?.querySelector('canvas');
+                    canvasSize = canvas ? `${canvas.width}x${canvas.height}` : null;
+                }
                 return {
                     hasPlayer: !!p,
                     hasCanvas: !!canvas,
-                    canvasSize: canvas ? `${canvas.width}x${canvas.height}` : null,
+                    canvasSize,
                     hasRuffleElement: !!ruffleEl,
-                    innerHTML: inner,
+                    hasShadowRoot: !!ruffleEl?.shadowRoot,
+                    shadowContent,
+                    innerHTML: p?.innerHTML?.substring(0, 300),
                 };
             }).catch(() => ({}));
-            if (ruffleState.hasPlayer) {
-                consoleLog.write(`[${ts()}] Player state @ ${label}: canvas=${ruffleState.canvasSize}, ruffleEl=${ruffleState.hasRuffleElement}\n`);
+            consoleLog.write(`[${ts()}] Player state @ ${label}: canvas=${ruffleState.canvasSize}, ruffleEl=${ruffleState.hasRuffleElement}, shadow=${ruffleState.hasShadowRoot}\n`);
+            if (ruffleState.shadowContent) {
+                consoleLog.write(`[${ts()}] Shadow DOM: ${ruffleState.shadowContent.substring(0, 150)}\n`);
             }
+        } catch (e) {}
+
+        // Click the player again at each interval to try to trigger AMF
+        try {
+            await page.evaluate(() => {
+                const rp = document.getElementById('ruffle-player') || document.querySelector('ruffle-player');
+                if (rp) { rp.click(); rp.focus(); if (rp.play) { try { rp.play(); } catch(e) {} } }
+            }).catch(() => {});
         } catch (e) {}
     }
 
-    // Final full-page screenshot
+    // Final screenshot
     try {
         await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'final_full.png'), fullPage: true });
     } catch (e) {}
@@ -230,13 +225,22 @@ async function run() {
     try {
         pageState = await page.evaluate(() => {
             const p = document.getElementById('player');
-            const swf = p?.querySelector('canvas, embed, object, ruffle-player');
+            const ruffleEl = p?.querySelector('ruffle-player, embed, object');
+            let canvasSize = null;
+            let shadowHTML = null;
+            if (ruffleEl?.shadowRoot) {
+                const canvas = ruffleEl.shadowRoot.querySelector('canvas');
+                canvasSize = canvas ? `${canvas.width}x${canvas.height}` : null;
+                shadowHTML = ruffleEl.shadowRoot.innerHTML?.substring(0, 500);
+            }
             return {
                 title: document.title,
                 logLines: (document.getElementById('log')?.textContent || '').split('\n').filter(l => l.trim()).length,
                 hasRuffle: !!window.RufflePlayer,
-                hasSWF: !!swf,
-                playerHTML: p?.innerHTML?.substring(0, 500),
+                hasSWF: !!ruffleEl,
+                canvasSize,
+                shadowHTML,
+                playerHTML: p?.innerHTML?.substring(0, 300),
                 swController: !!navigator.serviceWorker?.controller,
             };
         });
@@ -260,6 +264,7 @@ async function run() {
         `    Version:     ${state.ruffleVersion || 'NOT DETECTED'}`,
         `    SWF Loaded:  ${state.swfLoaded ? '✅ YES' : '❌ NO'}`,
         `    SWF Error:   ${state.swfError || 'none'}`,
+        `    Canvas:      ${pageState.canvasSize || 'NOT FOUND'}`,
         '',
         `  SERVICE WORKER`,
         `    Registered:  ${state.swRegistered ? '✅' : '❌'}`,
@@ -281,14 +286,21 @@ async function run() {
         `    Title:           ${pageState.title || '?'}`,
         `    Has Ruffle:      ${pageState.hasRuffle ? '✅' : '❌'}`,
         `    Has SWF element:  ${pageState.hasSWF ? '✅' : '❌'}`,
+        `    Canvas size:     ${pageState.canvasSize || 'N/A'}`,
         `    Log lines:       ${pageState.logLines || 0}`,
         `    SW controller:   ${pageState.swController ? '✅' : '❌'}`,
         '',
     ];
 
+    if (pageState.shadowHTML) {
+        lines.push(`  SHADOW DOM (first 200 chars):`);
+        lines.push(`    ${pageState.shadowHTML.substring(0, 200)}`);
+        lines.push('');
+    }
+
     if (pageState.playerHTML) {
-        lines.push(`  PLAYER HTML (first 300 chars):`);
-        lines.push(`    ${pageState.playerHTML}`);
+        lines.push(`  PLAYER HTML:`);
+        lines.push(`    ${pageState.playerHTML.substring(0, 300)}`);
         lines.push('');
     }
 
@@ -300,8 +312,7 @@ async function run() {
 
     if (state.amfResponses.length > 0) {
         lines.push('  ── AMF GATEWAY RESPONSES ──');
-        state.amfResponses.forEach((r, i) => 
-            lines.push(`    ${i+1}. ${r.status} ${r.size}B CT=${r.ct} ${r.url.substring(0, 80)}`));
+        state.amfResponses.forEach((r, i) => lines.push(`    ${i+1}. ${r.status} ${r.size}B CT=${r.ct} ${r.url.substring(0, 80)}`));
         lines.push('');
     }
 
@@ -312,9 +323,8 @@ async function run() {
     }
 
     if (state.errors.length > 0) {
-        lines.push('  ── ERRORS (first 15) ──');
-        state.errors.slice(0, 15).forEach((e, i) => 
-            lines.push(`    ${i+1}. ${e.substring(0, 250)}`));
+        lines.push('  ── ERRORS (first 10) ──');
+        state.errors.slice(0, 10).forEach((e, i) => lines.push(`    ${i+1}. ${e.substring(0, 250)}`));
         lines.push('');
     }
 
@@ -328,6 +338,7 @@ async function run() {
     lines.push(`  SWF Loaded:      ${swfOk ? '✅' : '❌'}`);
     lines.push(`  Service Worker: ${swOk ? '✅' : '⚠️'}`);
     lines.push(`  No fatal errors: ${noFatalErrors ? '✅' : '❌'}`);
+    lines.push(`  AMF Intercepted: ${state.swIntercepted > 0 ? '✅' : '⚠️ (SWF may need interaction)'}`);
     lines.push(`  OVERALL: ${passed ? '✅ PASSED' : '⚠️ NEEDS ATTENTION'}`);
     lines.push('═══════════════════════════════════════════════════════════');
 
@@ -335,23 +346,15 @@ async function run() {
     summaryLog.write(summary);
     console.log('\n' + summary);
 
-    // Cleanup
-    consoleLog.end();
-    networkLog.end();
-    swLog.end();
-    summaryLog.end();
+    consoleLog.end(); networkLog.end(); swLog.end(); summaryLog.end();
     await browser.close();
     process.exit(passed ? 0 : 1);
 }
 
 run().catch(err => {
     const msg = `FATAL: ${err.message}\n${err.stack || ''}`;
-    consoleLog.write(`\n${msg}\n`);
-    summaryLog.write(msg + '\n');
+    consoleLog.write(`\n${msg}\n`); summaryLog.write(msg + '\n');
     console.error(msg);
-    consoleLog.end();
-    networkLog.end();
-    swLog.end();
-    summaryLog.end();
+    consoleLog.end(); networkLog.end(); swLog.end(); summaryLog.end();
     process.exit(2);
 });
