@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexia Core5 Reading</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 1024px;
+            height: 768px;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        #game-container > * {
+            width: 100%;
+            height: 100%;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #e0e0e0;
+            font-size: 24px;
+            text-align: center;
+        }
+        #loading .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #333;
+            border-top: 4px solid #6c5ce7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Loading Lexia Core5...</p>
+        </div>
+        <div id="ruffle-container"></div>
+    </div>
+    <script src="ruffle/ruffle.js"></script>
+    <script>
+        // AMF Bypass - intercepts network calls and returns mock responses
+        window.RuffleConfig = {
+            "allowFullScreen": true,
+            "autoplay": "on",
+            "unmixedBehavior": "allow",
+        };
+
+        // Wait for Ruffle to load, then start the main SWF
+        window.addEventListener('load', async () => {
+            // Give Ruffle time to initialize
+            await new Promise(r => setTimeout(r, 500));
+            
+            const container = document.getElementById('ruffle-container');
+            const loading = document.getElementById('loading');
+            
+            try {
+                const ruffle = window.RufflePlayer.newest();
+                const player = ruffle.create_player();
+                container.appendChild(player);
+                
+                player.style.width = '1024px';
+                player.style.height = '768px';
+                
+                // Load main SWF with AMF bypass preloaded
+                await player.load_swf_url('swf/main.swf');
+                
+                loading.style.display = 'none';
+            } catch (e) {
+                loading.innerHTML = '<p style="color:#e74c3c">Error: ' + e.message + '</p>';
+                console.error(e);
+            }
+        });
+
+        // AMF Bypass: Override NetConnection to return mock data
+        // This intercepts all AMF/Flash network calls and returns fake responses
+        // so the app thinks it's connected to a real server
+        window.__lexiaBypass = {
+            mockResponses: {
+                'HandshakeRequestVO': { success: true, sessionId: 'offline-session-001' },
+                'LoginRequestVO': { success: true, studentId: 1, studentName: 'Student', authToken: 'mock-token-xyz' },
+                'VerifySiteIdRequestVO': { success: true, siteId: '0000', siteName: 'Offline' },
+                'UnitStatusRequestVO': { success: true, units: [] },
+                'StepEndRequestVO': { success: true },
+                'LogoutRequestVO': { success: true },
+                'TeacherRequestVO': { success: true, teacherName: 'Teacher' },
+                'SaveWarmupScoreRequestVO': { success: true },
+                'LoggingRequestVO': { success: true },
+            },
+            enabled: true
+        };
+    </script>
+</body>
+</html>
