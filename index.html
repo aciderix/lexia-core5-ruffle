@@ -42,9 +42,10 @@
         }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         #ruffle-container { width: 100%; height: 100%; }
-        #ruffle-container ruffle-player, #ruffle-container ruffle-object {
+        #ruffle-container ruffle-player {
             width: 100% !important;
             height: 100% !important;
+            display: block;
         }
         #status {
             position: fixed;
@@ -56,18 +57,17 @@
         }
         #debug-log {
             position: fixed;
-            bottom: 30px; right: 10px;
+            bottom: 30px; left: 10px;
             color: #ff6;
             font-size: 11px;
             font-family: monospace;
-            max-width: 400px;
-            max-height: 200px;
+            max-width: 500px;
+            max-height: 300px;
             overflow-y: auto;
             z-index: 100;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.7);
             padding: 5px;
             border-radius: 5px;
-            display: none;
         }
     </style>
 </head>
@@ -78,7 +78,7 @@
             <p>Loading Lexia Core5...</p>
         </div>
         <div id="ruffle-container">
-            <ruffle-player id="player"></ruffle-player>
+            <ruffle-player id="player" src="swf/main.swf"></ruffle-player>
         </div>
     </div>
     <div id="status">Initializing...</div>
@@ -86,52 +86,62 @@
 
     <script src="ruffle/ruffle.js"></script>
     <script>
-        // Register Service Worker for AMF bypass
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(reg => {
+            navigator.serviceWorker.register('sw.js').then(() => {
                 document.getElementById('status').textContent = 'AMF Bypass: Active';
             }).catch(err => {
                 document.getElementById('status').textContent = 'AMF Bypass: Failed';
-                console.error('SW registration failed:', err);
             });
         }
 
-        // Ruffle config
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
-            "allowFullScreen": true,
-            "autoplay": "on",
-            "unmixedBehavior": "allow",
-            "letterbox": "on",
-            "warnOnUnsupportedContent": false
+            allowFullScreen: true,
+            autoplay: "on",
+            unmixedBehavior: "allow",
+            letterbox: "on",
+            warnOnUnsupportedContent: true
         };
 
         function debugLog(msg) {
             console.log('[Lexia] ' + msg);
             const el = document.getElementById('debug-log');
-            el.style.display = 'block';
             el.innerHTML += msg + '<br>';
             el.scrollTop = el.scrollHeight;
         }
 
-        window.addEventListener('load', async () => {
+        window.addEventListener('load', () => {
             const loading = document.getElementById('loading');
             const player = document.getElementById('player');
             
-            try {
-                debugLog('Loading Ruffle player...');
-                // Wait a moment for Ruffle to initialize
-                await new Promise(r => setTimeout(r, 500));
-                
-                debugLog('Loading main.swf...');
-                await player.load('swf/main.swf');
+            debugLog('Ruffle player found: ' + (player ? 'yes' : 'no'));
+            debugLog('Player tagName: ' + player.tagName);
+            debugLog('Player methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(player)).join(', '));
+            
+            // Listen for load/error events
+            player.addEventListener('loadedmetadata', () => {
+                debugLog('SWF loaded!');
                 loading.style.display = 'none';
                 document.getElementById('status').textContent = 'Running';
-                debugLog('SWF loaded successfully!');
-            } catch (e) {
-                debugLog('Error: ' + e.message);
-                loading.innerHTML = '<p style="color:#e74c3c">Error: ' + e.message + '</p>';
-            }
+            });
+            
+            player.addEventListener('error', (e) => {
+                debugLog('Error event: ' + JSON.stringify(e.detail || e.message || e));
+                loading.innerHTML = '<p style="color:#e74c3c">Error loading SWF</p>';
+            });
+            
+            // Also try to play after Ruffle initializes
+            setTimeout(() => {
+                debugLog('Checking player state...');
+                if (player.play) {
+                    debugLog('Calling play()...');
+                    player.play().catch(e => debugLog('Play error: ' + e));
+                }
+                if (player.load) {
+                    debugLog('Has load method');
+                }
+                debugLog('Player attributes: ' + player.getAttribute('src'));
+            }, 2000);
         });
     </script>
 </body>
