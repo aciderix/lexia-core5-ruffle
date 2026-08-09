@@ -13,15 +13,12 @@
         #log .warn { color: #ff0; }
         #log .info { color: #0ff; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 18px; z-index: 1; }
-        ruffle-player { width: 1024px; height: 768px; display: block; }
     </style>
 </head>
 <body>
     <div id="loading">Loading Ruffle...</div>
     <div id="log"></div>
-    <div id="player">
-        <ruffle-player id="ruffle-player" src="swf/main.swf" width="1024" height="768"></ruffle-player>
-    </div>
+    <div id="player"></div>
 
     <script>
         // Log helper
@@ -41,17 +38,11 @@
                     log('Service Worker registered: ' + reg.scope, 'info');
                     return navigator.serviceWorker.ready;
                 })
-                .then(() => {
-                    log('Service Worker ready', 'info');
-                })
-                .catch(err => {
-                    log('SW registration failed: ' + err.message, 'error');
-                });
-        } else {
-            log('Service Worker not supported!', 'error');
+                .then(() => log('Service Worker ready', 'info'))
+                .catch(err => log('SW registration failed: ' + err.message, 'error'));
         }
 
-        // Ruffle config
+        // Ruffle config — MUST be set before ruffle.js loads
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             allowFullScreen: true,
@@ -60,7 +51,9 @@
             allowNetworking: "all",
             logLevel: "warn",
             base: "./",
-            maxExecutionDuration: 300
+            maxExecutionDuration: 300,
+            publicPath: "./ruffle/web/",
+            letterbox: "on"
         };
 
         // Capture console
@@ -73,50 +66,74 @@
             log('JS Error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''), 'error');
         });
 
-        window.addEventListener('unhandledrejection', (e) => {
-            log('Unhandled rejection: ' + (e.reason?.message || e.reason), 'error');
-        });
+        // Load the SWF using Ruffle's programmatic API
+        window.addEventListener('load', async () => {
+            log('Page loaded, waiting for Ruffle...', 'info');
+            
+            // Wait for Ruffle to be available
+            let attempts = 0;
+            while (!window.RufflePlayer?.newest && attempts < 100) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
 
-        // Monitor the ruffle-player element
-        const player = document.getElementById('ruffle-player');
-        
-        // Wait for Ruffle to load and upgrade the custom element
-        function checkRuffleLoaded() {
-            if (window.RufflePlayer && window.RufflePlayer.newest) {
-                const ruffle = window.RufflePlayer.newest();
-                log('Ruffle version: ' + (ruffle?.version || 'unknown'), 'info');
-                
-                // The <ruffle-player> custom element should be auto-upgraded
-                // Listen for load events
-                if (player) {
-                    player.addEventListener('loadedmetadata', () => {
+            if (!window.RufflePlayer?.newest) {
+                log('Ruffle failed to load!', 'error');
+                return;
+            }
+
+            const Ruffle = window.RufflePlayer.newest();
+            log('Ruffle version: ' + (Ruffle?.version || 'unknown'), 'info');
+
+            // Create player programmatically
+            const playerContainer = document.getElementById('player');
+            
+            try {
+                // Method 1: Ruffle.newest().createPlayer()
+                if (Ruffle.createPlayer) {
+                    log('Using createPlayer() API', 'info');
+                    const rufflePlayer = Ruffle.createPlayer();
+                    rufflePlayer.id = 'ruffle-player';
+                    rufflePlayer.style.width = '1024px';
+                    rufflePlayer.style.height = '768px';
+                    playerContainer.appendChild(rufflePlayer);
+                    rufflePlayer.load({ url: 'swf/main.swf', autoplay: 'on', allowScriptAccess: true, allowNetworking: 'all' });
+                    log('SWF load initiated via createPlayer()', 'info');
+                    
+                    rufflePlayer.addEventListener('loadedmetadata', () => {
                         document.getElementById('loading').style.display = 'none';
                         log('SWF loaded (loadedmetadata)!', 'info');
                     });
-                    player.addEventListener('load', () => {
+                    rufflePlayer.addEventListener('load', () => {
                         document.getElementById('loading').style.display = 'none';
                         log('SWF loaded (load)!', 'info');
                     });
-                    player.addEventListener('error', (e) => {
-                        log('Ruffle player error: ' + (e.detail?.message || e.message || 'unknown'), 'error');
-                    });
-                    
-                    // Also try to play
-                    if (player.play) {
-                        player.play().catch(e => log('Play failed: ' + e.message, 'warn'));
-                    }
                 }
-                
-                // Hide loading after a few seconds as fallback
-                setTimeout(() => {
-                    document.getElementById('loading').style.display = 'none';
-                    log('Loading screen dismissed (timeout)', 'info');
-                }, 10000);
-            } else {
-                setTimeout(checkRuffleLoaded, 100);
+                // Method 2: RufflePlayer.attach (polyfill mode)
+                else if (Ruffle.attach) {
+                    log('Using attach() API', 'info');
+                    const rufflePlayer = Ruffle.attach(playerContainer, 'swf/main.swf');
+                    log('SWF load initiated via attach()', 'info');
+                }
+                // Method 3: Use <embed> polyfill
+                else {
+                    log('Using <embed> polyfill mode', 'info');
+                    playerContainer.innerHTML = '<embed src="swf/main.swf" type="application/x-shockwave-flash" width="1024" height="768" allowscriptaccess="always" allownetworking="all" allowfullscreen="true">';
+                    // Ruffle should auto-upgrade the embed
+                }
+            } catch (e) {
+                log('SWF load error: ' + e.message, 'error');
+                // Fallback: try <embed> polyfill
+                log('Trying <embed> fallback', 'warn');
+                playerContainer.innerHTML = '<embed src="swf/main.swf" type="application/x-shockwave-flash" width="1024" height="768" allowscriptaccess="always" allownetworking="all" allowfullscreen="true">';
             }
-        }
-        checkRuffleLoaded();
+
+            // Hide loading after 15s as fallback
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                log('Loading screen dismissed (timeout)', 'info');
+            }, 15000);
+        });
     </script>
 
     <!-- Load Ruffle from local self-hosted build -->
