@@ -2,202 +2,62 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lexia Core5 Reading (Debug)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lexia Core5 (Debug)</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #1a1a2e;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            overflow: hidden;
-        }
-        #game-container {
-            position: relative;
-            width: 1024px;
-            height: 768px;
-            max-width: 100vw;
-            max-height: 100vh;
-            aspect-ratio: 4/3;
-        }
-        #game-container object, #game-container embed {
-            width: 100% !important;
-            height: 100% !important;
-        }
-        #loading {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #e0e0e0;
-            font-size: 24px;
-            text-align: center;
-            z-index: 10;
-            pointer-events: none;
-        }
-        #loading .spinner {
-            width: 50px; height: 50px;
-            border: 4px solid #333;
-            border-top: 4px solid #6c5ce7;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        #status {
-            position: fixed;
-            bottom: 10px; right: 10px;
-            color: #888;
-            font-size: 12px;
-            font-family: monospace;
-            z-index: 100;
-        }
-        #debug-panel {
-            position: fixed;
-            top: 0; left: 0;
-            width: 500px;
-            max-height: 100vh;
-            overflow-y: auto;
-            background: rgba(0,0,0,0.9);
-            color: #0f0;
-            font-size: 11px;
-            font-family: monospace;
-            padding: 10px;
-            z-index: 1000;
-            pointer-events: auto;
-        }
-        #debug-panel .error { color: #f44; }
-        #debug-panel .warn { color: #ff0; }
-        #debug-panel .info { color: #0ff; }
+        body { background: #1a1a2e; font-family: monospace; }
+        #debug { position: fixed; top: 0; left: 0; right: 0; height: 100vh; overflow-y: auto; padding: 10px; color: #0f0; font-size: 12px; }
+        #debug .err { color: #f44; }
+        #debug .warn { color: #ff0; }
+        #game { position: fixed; top: -9999px; }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="loading">
-            <div class="spinner"></div>
-            <p>Loading Lexia Core5...</p>
-        </div>
-        <object
-            id="flash-object"
-            data="swf/main.swf"
-            type="application/x-shockwave-flash"
-            width="100%"
-            height="100%">
+    <div id="debug"></div>
+    <div id="game">
+        <object id="swf" data="swf/main.swf" type="application/x-shockwave-flash" width="1024" height="768">
             <param name="movie" value="swf/main.swf" />
-            <param name="allowFullScreen" value="true" />
-            <param name="autoplay" value="true" />
-            <param name="quality" value="high" />
-            <param name="wmode" value="direct" />
             <param name="allowScriptAccess" value="always" />
+            <param name="autoplay" value="true" />
         </object>
     </div>
-    <div id="status">Initializing...</div>
-    <div id="debug-panel">
-        <div style="color:#fff;font-weight:bold;margin-bottom:10px;">=== Lexia Core5 Debug Console ===</div>
-    </div>
-
     <script src="ruffle/ruffle.js"></script>
     <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => {
-                document.getElementById('status').textContent = 'AMF Bypass: Active';
-            }).catch(() => {
-                document.getElementById('status').textContent = 'AMF Bypass: Failed';
-            });
-        }
-
-        // Capture all console output
-        const debugPanel = document.getElementById('debug-panel');
-        function addDebug(msg, type) {
-            const div = document.createElement('div');
-            div.className = type || 'info';
-            div.textContent = msg;
-            debugPanel.appendChild(div);
-            debugPanel.scrollTop = debugPanel.scrollHeight;
-        }
-
-        const origLog = console.log;
-        const origError = console.error;
-        const origWarn = console.warn;
+        const d = document.getElementById('debug');
+        const lines = [];
+        let maxLines = 50;
         
-        console.log = function(...args) {
-            origLog.apply(console, args);
-            addDebug(args.join(' '), 'info');
-        };
-        console.error = function(...args) {
-            origError.apply(console, args);
-            addDebug('[ERROR] ' + args.join(' '), 'error');
-        };
-        console.warn = function(...args) {
-            origWarn.apply(console, args);
-            addDebug('[WARN] ' + args.join(' '), 'warn');
-        };
-
-        // Capture uncaught errors
-        window.addEventListener('error', (e) => {
-            addDebug('[UNCAUGHT] ' + e.message + ' at ' + (e.filename || '') + ':' + (e.lineno || ''), 'error');
-        });
-
-        window.addEventListener('unhandledrejection', (e) => {
-            addDebug('[REJECTION] ' + (e.reason && e.reason.message ? e.reason.message : e.reason), 'error');
-        });
-
-        // Ruffle config with max verbosity
-        window.RufflePlayer = window.RufflePlayer || {};
-        window.RufflePlayer.config = {
-            allowFullScreen: true,
-            autoplay: "on",
-            unmixedBehavior: "allow",
-            letterbox: "on",
-            warnOnUnsupportedContent: true,
-            logLevel: "debug",
-            showSWFLoadProgress: true
-        };
-
-        addDebug('Ruffle config set');
-        addDebug('Loading ruffle.js...');
-
-        // Monitor Ruffle initialization
-        let ruffleCheckCount = 0;
-        const checkRuffle = setInterval(() => {
-            ruffleCheckCount++;
-            const obj = document.getElementById('flash-object');
-            const ruffleObj = document.querySelector('ruffle-object, ruffle-player, ruffle-embed');
-            const canvas = document.querySelector('canvas');
-            
-            if (ruffleCheckCount <= 5 || ruffleCheckCount % 10 === 0) {
-                addDebug(`Check #${ruffleCheckCount}: object=${obj ? 'yes' : 'no'} ruffle=${ruffleObj ? 'yes' : 'no'} canvas=${canvas ? 'yes' : 'no'}`);
-                
-                if (ruffleObj) {
-                    addDebug(`Ruffle element: ${ruffleObj.tagName} id=${ruffleObj.id}`);
-                    // Check for Ruffle player methods
-                    const proto = Object.getPrototypeOf(ruffleObj);
-                    const ruffleMethods = Object.getOwnPropertyNames(proto).filter(m => !m.startsWith('on'));
-                    if (ruffleMethods.length > 0 && ruffleCheckCount <= 3) {
-                        addDebug(`Ruffle methods: ${ruffleMethods.join(', ')}`);
-                    }
-                }
-                
-                if (canvas) {
-                    addDebug(`Canvas: ${canvas.width}x${canvas.height}`, 'warn');
-                    clearInterval(checkRuffle);
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('status').textContent = 'Canvas Active';
-                }
-            }
-            
-            if (ruffleCheckCount > 100) {
-                clearInterval(checkRuffle);
-                addDebug('Stopped checking after 100 attempts', 'warn');
-            }
-        }, 200);
-
-        window.addEventListener('load', () => {
-            addDebug('Window loaded. Waiting for Ruffle...');
-        });
+        function log(msg, cls) {
+            lines.push({msg: String(msg).slice(0, 200), cls: cls || ''});
+            if (lines.length > maxLines) lines.shift();
+            d.innerHTML = lines.map(l => '<div class="'+l.cls+'">'+l.msg.replace(/</g,'&lt;')+'</div>').join('');
+            d.scrollTop = d.scrollHeight;
+        }
+        
+        console.log = (...a) => log(a.join(' '));
+        console.error = (...a) => log('[ERR] '+a.join(' '), 'err');
+        console.warn = (...a) => log('[WARN] '+a.join(' '), 'warn');
+        window.onerror = (m,s,l) => log('[UNCAUGHT] '+m+' :'+l, 'err');
+        
+        window.RufflePlayer = { config: { autoplay: "on", warnOnUnsupportedContent: true, logLevel: "debug" } };
+        
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+        
+        log('Page loaded, Ruffle starting...');
+        
+        let n = 0;
+        setInterval(() => {
+            n++;
+            const r = document.querySelector('ruffle-object, ruffle-player');
+            const c = document.querySelector('canvas');
+            if (n <= 3) log('Check '+n+': ruffle='+(r?'YES':'NO')+' canvas='+(c?'YES':'NO'));
+            if (n === 5) log('Stopping periodic checks', 'warn');
+        }, 1000);
+        
+        setTimeout(() => log('10s elapsed'), 10000);
+        setTimeout(() => log('20s elapsed'), 20000);
+        setTimeout(() => log('30s elapsed'), 30000);
     </script>
 </body>
 </html>
