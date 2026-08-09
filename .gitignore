@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+test/node_modules/
+
+# Test artifacts (regenerated each run)
+test/screenshots/*.png
+test/logs/*.log
+test/logs/*.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# Misc
+*.pid
+*.tar.gz
+*.zip

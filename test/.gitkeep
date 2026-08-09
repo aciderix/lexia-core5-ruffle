@@ -1,0 +1,11 @@
+# test/screenshots/
+
+Screenshots will be saved here by the GitHub Actions test runner at 5s, 15s, 30s, 45s, 60s, 75s and 90s after page load, plus a final full-page screenshot.
+
+# test/logs/
+
+Test logs will be saved here:
+- `console.log` — all browser console output
+- `network.log` — all network requests and responses
+- `service-worker.log` — Service Worker messages (AMF interception logs)
+- `summary.txt` — test summary with pass/fail status

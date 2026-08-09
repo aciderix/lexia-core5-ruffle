@@ -1,0 +1,119 @@
+name: Test Lexia Core5 Ruffle
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    # Run daily at 3am UTC to catch regressions
+    - cron: '0 3 * * *'
+
+env:
+  PORT: 8080
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Cache Node modules ──
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('test/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      # ── Cache Playwright browsers ──
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('test/package-lock.json') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      # ── Setup Node ──
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: test/package-lock.json
+
+      # ── Install deps ──
+      - name: Install test dependencies
+        working-directory: test
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: test
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Playwright deps only (cached browser)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: test
+        run: npx playwright install-deps chromium
+
+      # ── Verify files exist ──
+      - name: Verify project files
+        run: |
+          echo "=== File structure ==="
+          ls -la index.html sw.js amf.js crossdomain.xml
+          ls -la swf/main.swf
+          ls -la ruffle/web/ruffle.js || echo "Ruffle self-hosted not found"
+          echo "=== SWF size ==="
+          du -h swf/main.swf
+
+      # ── Start HTTP server ──
+      - name: Start HTTP server
+        run: |
+          python3 server.py &
+          echo $! > server.pid
+          sleep 2
+          curl -s -o /dev/null -w "Server status: %{http_code}\n" http://localhost:$PORT/index.html
+
+      # ── Run tests ──
+      - name: Run Playwright test suite
+        working-directory: test
+        env:
+          PORT: ${{ env.PORT }}
+        run: node runner.js
+
+      # ── Upload screenshots ──
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: test/screenshots/
+          retention-days: 30
+
+      # ── Upload logs ──
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: test/logs/
+          retention-days: 30
+
+      # ── Print summary ──
+      - name: Test summary
+        if: always()
+        run: |
+          echo "=== TEST SUMMARY ==="
+          cat test/logs/summary.txt 2>/dev/null || echo "No summary found"
+          echo ""
+          echo "=== Console log (last 50 lines) ==="
+          tail -50 test/logs/console.log 2>/dev/null || echo "No console log"
+          echo ""
+          echo "=== Network log ==="
+          cat test/logs/network.log 2>/dev/null || echo "No network log"
