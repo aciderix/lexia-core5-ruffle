@@ -2,27 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Lexia Debug</title>
-    <style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;color:#0f0;font-family:monospace;font-size:11px}#d{padding:10px;max-height:100vh;overflow-y:auto}#d .e{color:#f44}#d .w{color:#ff0}#g{position:fixed;top:-9999px}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lexia Core5 Reading</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
+        #game-container { position: relative; width: 1024px; height: 768px; max-width: 100vw; max-height: 100vh; aspect-ratio: 4/3; }
+        #game-container object { width: 100% !important; height: 100% !important; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 24px; text-align: center; z-index: 10; }
+        #status { position: fixed; bottom: 10px; right: 10px; color: #888; font-size: 12px; font-family: monospace; z-index: 100; }
+    </style>
 </head>
 <body>
-<div id="d"></div>
-<div id="g"><object id="swf" data="swf/main.swf" type="application/x-shockwave-flash" width="1024" height="768"><param name="movie" value="swf/main.swf"/><param name="allowScriptAccess" value="always"/><param name="autoplay" value="true"/></object></div>
-<script src="ruffle/ruffle.js"></script>
-<script>
-const d=document.getElementById('d');
-const lines=[];
-function log(m,c){lines.push({m:String(m).slice(0,300),c:c||''});if(lines.length>30)lines.shift();d.innerHTML=lines.map(l=>'<div class="'+l.c+'">'+l.m.replace(/</g,'&lt;')+'</div>').join('');d.scrollTop=d.scrollHeight;}
-console.log=(...a)=>log(a.join(' '));
-console.error=(...a)=>log('[E] '+a.join(' '),'e');
-console.warn=(...a)=>log('[W] '+a.join(' '),'w');
-window.onerror=(m,s,l)=>log('[ERR] '+m+' :'+l,'e');
-window.RufflePlayer={config:{autoplay:"on",warnOnUnsupportedContent:true,logLevel:"debug"}};
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
-log('Loading...');
-setTimeout(()=>log('5s'),5000);
-setTimeout(()=>log('15s'),15000);
-setTimeout(()=>log('30s'),30000);
-</script>
+    <div id="game-container">
+        <div id="loading"><p>Loading Lexia Core5...</p></div>
+        <object id="flash-object" data="swf/main.swf" type="application/x-shockwave-flash" width="100%" height="100%">
+            <param name="movie" value="swf/main.swf" />
+            <param name="allowFullScreen" value="true" />
+            <param name="autoplay" value="true" />
+            <param name="quality" value="high" />
+            <param name="allowScriptAccess" value="always" />
+        </object>
+    </div>
+    <div id="status">Running</div>
+    <script src="ruffle/ruffle.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = { allowFullScreen: true, autoplay: "on", warnOnUnsupportedContent: true };
+    </script>
 </body>
 </html>
