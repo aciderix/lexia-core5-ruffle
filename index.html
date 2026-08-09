@@ -12,13 +12,16 @@
         #log .error { color: #f44; }
         #log .warn { color: #ff0; }
         #log .info { color: #0ff; }
-        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 18px; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 18px; z-index: 1; }
+        ruffle-player { width: 1024px; height: 768px; display: block; }
     </style>
 </head>
 <body>
     <div id="loading">Loading Ruffle...</div>
     <div id="log"></div>
-    <div id="player"></div>
+    <div id="player">
+        <ruffle-player id="ruffle-player" src="swf/main.swf" width="1024" height="768"></ruffle-player>
+    </div>
 
     <script>
         // Log helper
@@ -39,70 +42,81 @@
                     return navigator.serviceWorker.ready;
                 })
                 .then(() => {
-                    log('Service Worker ready, loading Ruffle...', 'info');
-                    loadRuffle();
+                    log('Service Worker ready', 'info');
                 })
                 .catch(err => {
                     log('SW registration failed: ' + err.message, 'error');
-                    loadRuffle(); // Load anyway
                 });
         } else {
             log('Service Worker not supported!', 'error');
-            loadRuffle();
         }
 
-        // Listen for SW messages
-        navigator.serviceWorker?.addEventListener('message', (e) => {
-            log('SW msg: ' + JSON.stringify(e.data), 'info');
+        // Ruffle config
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            allowFullScreen: true,
+            autoplay: "on",
+            allowScriptAccess: true,
+            allowNetworking: "all",
+            logLevel: "warn",
+            base: "./",
+            maxExecutionDuration: 300
+        };
+
+        // Capture console
+        const origLog = console.log, origErr = console.error, origWarn = console.warn;
+        console.log = function(...a) { log(a.join(' ')); origLog.apply(console, a); };
+        console.error = function(...a) { log('ERROR: ' + a.join(' '), 'error'); origErr.apply(console, a); };
+        console.warn = function(...a) { log('WARN: ' + a.join(' '), 'warn'); origWarn.apply(console, a); };
+
+        window.addEventListener('error', (e) => {
+            log('JS Error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''), 'error');
         });
 
-        function loadRuffle() {
-            document.getElementById('loading').textContent = 'Loading Ruffle runtime...';
+        window.addEventListener('unhandledrejection', (e) => {
+            log('Unhandled rejection: ' + (e.reason?.message || e.reason), 'error');
+        });
 
-            window.RufflePlayer = window.RufflePlayer || {};
-            window.RufflePlayer.config = {
-                allowFullScreen: true,
-                autoplay: "on",
-                allowScriptAccess: true,
-                allowNetworking: "all",
-                logLevel: "warn",
-                base: "./",
-                maxExecutionDuration: 300
-            };
-
-            // Capture console
-            const origLog = console.log, origErr = console.error, origWarn = console.warn;
-            console.log = function(...a) { log(a.join(' ')); origLog.apply(console, a); };
-            console.error = function(...a) { log('ERROR: ' + a.join(' '), 'error'); origErr.apply(console, a); };
-            console.warn = function(...a) { log('WARN: ' + a.join(' '), 'warn'); origWarn.apply(console, a); };
-
-            window.addEventListener('error', (e) => {
-                log('JS Error: ' + e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''), 'error');
-            });
-
-            window.addEventListener('unhandledrejection', (e) => {
-                log('Unhandled rejection: ' + (e.reason?.message || e.reason), 'error');
-            });
-
-            const ruffle = window.RufflePlayer.newest();
-            log('Ruffle version: ' + (ruffle?.version || 'unknown'), 'info');
-
-            const player = document.getElementById('player');
-            ruffle.load({
-                url: 'swf/main.swf',
-                autoplay: "on",
-                allowScriptAccess: true,
-                allowNetworking: "all",
-                base: "./",
-                parameters: {}
-            }).then(instance => {
-                document.getElementById('loading').style.display = 'none';
-                log('SWF loaded successfully!', 'info');
-            }).catch(err => {
-                document.getElementById('loading').textContent = 'Load failed: ' + err.message;
-                log('SWF load FAILED: ' + (err.message || err), 'error');
-            });
+        // Monitor the ruffle-player element
+        const player = document.getElementById('ruffle-player');
+        
+        // Wait for Ruffle to load and upgrade the custom element
+        function checkRuffleLoaded() {
+            if (window.RufflePlayer && window.RufflePlayer.newest) {
+                const ruffle = window.RufflePlayer.newest();
+                log('Ruffle version: ' + (ruffle?.version || 'unknown'), 'info');
+                
+                // The <ruffle-player> custom element should be auto-upgraded
+                // Listen for load events
+                if (player) {
+                    player.addEventListener('loadedmetadata', () => {
+                        document.getElementById('loading').style.display = 'none';
+                        log('SWF loaded (loadedmetadata)!', 'info');
+                    });
+                    player.addEventListener('load', () => {
+                        document.getElementById('loading').style.display = 'none';
+                        log('SWF loaded (load)!', 'info');
+                    });
+                    player.addEventListener('error', (e) => {
+                        log('Ruffle player error: ' + (e.detail?.message || e.message || 'unknown'), 'error');
+                    });
+                    
+                    // Also try to play
+                    if (player.play) {
+                        player.play().catch(e => log('Play failed: ' + e.message, 'warn'));
+                    }
+                }
+                
+                // Hide loading after a few seconds as fallback
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    log('Loading screen dismissed (timeout)', 'info');
+                }, 10000);
+            } else {
+                setTimeout(checkRuffleLoaded, 100);
+            }
         }
+        checkRuffleLoaded();
     </script>
 
     <!-- Load Ruffle from local self-hosted build -->
