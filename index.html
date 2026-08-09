@@ -8,28 +8,126 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
         #game-container { position: relative; width: 1024px; height: 768px; max-width: 100vw; max-height: 100vh; aspect-ratio: 4/3; }
-        #game-container object { width: 100% !important; height: 100% !important; }
-        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 24px; text-align: center; z-index: 10; }
-        #status { position: fixed; bottom: 10px; right: 10px; color: #888; font-size: 12px; font-family: monospace; z-index: 100; }
+        #game-container object, #game-container ruffle-object { width: 100% !important; height: 100% !important; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e0e0e0; font-size: 20px; text-align: center; z-index: 10; pointer-events: none; }
+        #status { position: fixed; bottom: 10px; right: 10px; color: #888; font-size: 11px; font-family: monospace; z-index: 100; }
     </style>
 </head>
 <body>
     <div id="game-container">
-        <div id="loading"><p>Loading Lexia Core5...</p></div>
-        <object id="flash-object" data="swf/main.swf" type="application/x-shockwave-flash" width="100%" height="100%">
-            <param name="movie" value="swf/main.swf" />
-            <param name="allowFullScreen" value="true" />
-            <param name="autoplay" value="true" />
-            <param name="quality" value="high" />
-            <param name="allowScriptAccess" value="always" />
-        </object>
+        <div id="loading">
+            <p>Loading Lexia Core5...</p>
+            <p id="detail" style="font-size:13px;color:#666;margin-top:8px">Initializing...</p>
+        </div>
     </div>
-    <div id="status">Running</div>
+    <div id="status">Starting...</div>
     <script src="ruffle/ruffle.js"></script>
     <script>
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
         window.RufflePlayer = window.RufflePlayer || {};
-        window.RufflePlayer.config = { allowFullScreen: true, autoplay: "on", warnOnUnsupportedContent: true };
+        window.RufflePlayer.config = {
+            allowFullScreen: true,
+            autoplay: "on",
+            warnOnUnsupportedContent: false,
+            allowScriptAccess: true,
+            allowNetworking: "all",
+            upgradeToHttps: true,
+            logLevel: "info",
+            base: ".",
+            preloader: false,
+            splashScreen: false,
+            maxExecutionDuration: 60
+        };
+
+        function setStatus(msg) {
+            document.getElementById('status').textContent = msg;
+            document.getElementById('detail').textContent = msg;
+            console.log('[App]', msg);
+        }
+
+        function waitForSW() {
+            return new Promise(function(resolve) {
+                if (!('serviceWorker' in navigator)) {
+                    setStatus('No SW support - loading without bypass');
+                    resolve(false);
+                    return;
+                }
+                setStatus('Registering service worker...');
+                navigator.serviceWorker.register('sw.js').then(function(reg) {
+                    if (reg.active) {
+                        setStatus('Service worker active');
+                        resolve(true);
+                        return;
+                    }
+                    var sw = reg.installing || reg.waiting;
+                    if (!sw) {
+                        setStatus('SW already active');
+                        resolve(true);
+                        return;
+                    }
+                    setStatus('Waiting for service worker...');
+                    sw.addEventListener('statechange', function() {
+                        if (sw.state === 'activated') {
+                            setStatus('Service worker activated');
+                            resolve(true);
+                        }
+                    });
+                    // Fallback: don't wait forever
+                    setTimeout(function() {
+                        setStatus('SW timeout - loading anyway');
+                        resolve(true);
+                    }, 5000);
+                }).catch(function(err) {
+                    console.error('[SW] Error:', err);
+                    setStatus('SW error: ' + err.message);
+                    resolve(false);
+                });
+            });
+        }
+
+        function loadSWF() {
+            setStatus('Loading SWF (main_single.swf)...');
+            var container = document.getElementById('game-container');
+            var obj = document.createElement('object');
+            obj.id = 'flash-object';
+            obj.setAttribute('data', 'swf/main_single.swf');
+            obj.setAttribute('type', 'application/x-shockwave-flash');
+            obj.setAttribute('width', '100%');
+            obj.setAttribute('height', '100%');
+            obj.innerHTML =
+                '<param name="movie" value="swf/main_single.swf" />' +
+                '<param name="allowFullScreen" value="true" />' +
+                '<param name="autoplay" value="true" />' +
+                '<param name="quality" value="high" />' +
+                '<param name="allowScriptAccess" value="always" />' +
+                '<param name="allowNetworking" value="all" />' +
+                '<param name="base" value="." />';
+            container.appendChild(obj);
+            setStatus('SWF loaded - waiting for Ruffle...');
+
+            // Check if Ruffle picks it up
+            var startTime = Date.now();
+            function check() {
+                if (obj.ruffle) {
+                    setStatus('Ruffle ready');
+                    setTimeout(function() {
+                        var loading = document.getElementById('loading');
+                        if (loading) loading.style.display = 'none';
+                    }, 3000);
+                } else if (Date.now() - startTime > 30000) {
+                    setStatus('Timeout - check console (F12)');
+                    document.getElementById('loading').innerHTML =
+                        '<p style="color:#ff6666">App not loading.<br>Open console (F12) for details.</p>';
+                } else {
+                    setTimeout(check, 500);
+                }
+            }
+            setTimeout(check, 1000);
+        }
+
+        // Main init: wait for SW, then load SWF
+        waitForSW().then(function() {
+            loadSWF();
+        });
     </script>
 </body>
 </html>
