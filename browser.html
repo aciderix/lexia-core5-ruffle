@@ -66,9 +66,6 @@
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
         }
-        #player-container iframe {
-            border: none; display: block; border-radius: 8px;
-        }
         #player-controls { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
         .btn {
             background: #334155; color: #e2e8f0; border: none; padding: 10px 20px;
@@ -108,7 +105,6 @@
         </div>
     </main>
     <script>
-        // Get base URL for relative paths
         var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
 
         const as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
@@ -207,13 +203,22 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
-            // Build URL for player.html with SWF path and base URL as query params
-            // player.html uses document.write() to inject <object> before Ruffle scans DOM
-            var playerUrl = BASE_URL + 'player.html?swf=' + encodeURIComponent(act.path) + '&base=' + encodeURIComponent(BASE_URL);
+            // Build URL for player.html — uses document.write() to inject <object>
+            // before Ruffle scans the DOM (polyfill only detects initial HTML objects)
+            var playerUrl = BASE_URL + 'player.html?swf=' + encodeURIComponent(act.path)
+                + '&base=' + encodeURIComponent(BASE_URL);
 
-            // Create iframe loading player.html — the object tag is in initial HTML inside player.html
-            // so Ruffle's polyfill will detect it (this is exactly how test.html works)
-            container.innerHTML = '<iframe src="' + playerUrl + '" width="800" height="600" style="border:none;display:block;border-radius:8px"></iframe>';
+            // Use createElement instead of innerHTML to avoid HTML parsing issues with &
+            container.innerHTML = ''; // Clear previous content
+
+            var iframe = document.createElement('iframe');
+            iframe.src = playerUrl;
+            iframe.style.width = '800px';
+            iframe.style.height = '600px';
+            iframe.style.border = 'none';
+            iframe.style.display = 'block';
+            iframe.style.borderRadius = '8px';
+            container.appendChild(iframe);
 
             document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
