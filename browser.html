@@ -4,22 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
-    <script>
-        var params = new URLSearchParams(window.location.search);
-        var swfPath = params.get('swf') || '';
-        var currentLevel = params.get('level') || '';
-
-        window.RufflePlayer = window.RufflePlayer || {};
-        window.RufflePlayer.config = {
-            autoplay: 'on',
-            unmuteOverlay: 'visible',
-            backgroundColor: '#FFFFFF',
-            letterbox: 'on',
-            contextMenu: 'off',
-            showSwfDownload: false,
-        };
-    </script>
-    <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -29,102 +13,101 @@
         }
         header {
             background: linear-gradient(135deg, #1e3a5f, #2563eb);
-            padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
-        header h1 { font-size: 18px; font-weight: 600; color: #fff; }
-        header .subtitle { font-size: 12px; color: #93c5fd; margin-top: 2px; }
+        header h1 { font-size: 22px; font-weight: 600; color: #fff; }
+        header .subtitle { font-size: 13px; color: #93c5fd; margin-top: 2px; }
         #status-badge {
             font-size: 12px; padding: 4px 12px; border-radius: 12px;
             background: rgba(255,255,255,0.15); color: #bfdbfe;
         }
         main { display: flex; flex: 1; overflow: hidden; }
         #sidebar {
-            width: 240px; background: #1e293b; border-right: 1px solid #334155;
+            width: 280px; background: #1e293b; border-right: 1px solid #334155;
             overflow-y: auto; flex-shrink: 0;
         }
         .level-group { border-bottom: 1px solid #334155; }
         .level-header {
-            padding: 12px 16px; cursor: pointer; display: flex; align-items: center;
+            padding: 14px 18px; cursor: pointer; display: flex; align-items: center;
             justify-content: space-between; transition: background 0.15s; font-weight: 600;
-            font-size: 14px; color: #cbd5e1;
+            font-size: 15px; color: #cbd5e1;
         }
         .level-header:hover { background: #334155; }
         .level-header.active { background: #2563eb; color: #fff; }
         .level-header .count {
-            font-size: 11px; font-weight: 400; color: #64748b;
+            font-size: 12px; font-weight: 400; color: #64748b;
             background: #334155; padding: 2px 8px; border-radius: 8px;
         }
         .level-header.active .count { background: rgba(255,255,255,0.2); color: #fff; }
         .level-items { display: none; padding: 4px 0; }
         .level-items.show { display: block; }
         .activity-item {
-            padding: 6px 16px 6px 32px; cursor: pointer; font-size: 12px; color: #94a3b8;
+            padding: 8px 18px 8px 36px; cursor: pointer; font-size: 13px; color: #94a3b8;
             display: flex; align-items: center; justify-content: space-between; transition: all 0.15s;
             text-decoration: none;
         }
         .activity-item:hover { background: #334155; color: #e2e8f0; }
         .activity-item.active { background: #1e40af; color: #fff; }
-        .activity-item .badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+        .activity-item .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
         .badge-as2 { background: #059669; color: #d1fae5; }
         .badge-as3 { background: #b45309; color: #fef3c7; }
-        .activity-item .size { font-size: 10px; color: #475569; }
+        .activity-item .size { font-size: 11px; color: #475569; }
         #player-area {
             flex: 1; display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 20px; overflow: auto;
-        }
-        #player-container {
-            width: 800px; height: 600px; background: #fff;
-            border-radius: 8px; overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.5); position: relative;
-            flex-shrink: 0;
+            justify-content: center; padding: 40px;
         }
         #placeholder {
-            display: flex; align-items: center; justify-content: center; height: 100%;
-            color: #475569; font-size: 16px; text-align: center;
+            text-align: center; max-width: 500px;
         }
-        #player-controls { margin-top: 12px; display: flex; gap: 10px; align-items: center; }
-        .btn {
-            background: #334155; color: #e2e8f0; border: none; padding: 8px 16px;
-            border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
-            transition: all 0.15s;
+        #placeholder h2 {
+            font-size: 24px; color: #e2e8f0; margin-bottom: 12px; font-weight: 600;
         }
-        .btn:hover { background: #475569; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-primary { background: #2563eb; }
-        .btn-primary:hover { background: #1d4ed8; }
-        #now-playing { color: #64748b; font-size: 12px; }
+        #placeholder p {
+            color: #64748b; font-size: 15px; line-height: 1.6;
+        }
+        #placeholder .stats {
+            margin-top: 24px; display: flex; gap: 20px; justify-content: center;
+        }
+        .stat-box {
+            background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+            padding: 16px 24px; text-align: center;
+        }
+        .stat-box .num { font-size: 28px; font-weight: 700; color: #2563eb; }
+        .stat-box .label { font-size: 12px; color: #64748b; margin-top: 4px; }
         #sidebar::-webkit-scrollbar { width: 6px; }
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        #debug-info {
-            position: fixed; top: 50px; right: 10px; z-index: 9999;
-            background: #1a1a2e; color: #0f0; padding: 8px 12px;
-            font-size: 11px; font-family: monospace; border-radius: 6px;
-            max-width: 400px; word-break: break-all;
-        }
     </style>
 </head>
 <body>
-    <div id="debug-info">DEBUG: initializing...</div>
     <header>
         <div>
             <h1>Lexia Core5 — Content Browser</h1>
-            <div class="subtitle">Direct SWF content player (Ruffle)</div>
+            <div class="subtitle">Direct SWF content player (Ruffle) — click any activity to play</div>
         </div>
         <div id="status-badge">Loading catalog...</div>
     </header>
     <main>
         <div id="sidebar"></div>
         <div id="player-area">
-            <div id="player-container">
-                <div id="placeholder">Select an activity from the sidebar to start</div>
-            </div>
-            <div id="player-controls">
-                <button class="btn" id="btn-prev" disabled>← Prev</button>
-                <button class="btn btn-primary" id="btn-reload" disabled>↻ Reload</button>
-                <button class="btn" id="btn-next" disabled>Next →</button>
-                <span id="now-playing"></span>
+            <div id="placeholder">
+                <h2>Select an activity</h2>
+                <p>Click any activity from the sidebar to open it in the Ruffle player. AS2 activities (green badge) are compatible with Ruffle. AS3 activities (orange badge) may not work.</p>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="num" id="stat-total">—</div>
+                        <div class="label">Total Activities</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="num" id="stat-as2" style="color: #059669">—</div>
+                        <div class="label">AS2 (Ruffle)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="num" id="stat-as3" style="color: #b45309">—</div>
+                        <div class="label">AS3</div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -132,71 +115,21 @@
         var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
         var as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
         var catalog = {};
-        var currentActivities = [];
-        var currentActivityIndex = -1;
-
-        document.getElementById('debug-info').textContent = 'DEBUG: swfPath=' + swfPath;
-
-        // If a SWF is specified, load it after DOM is ready
-        if (swfPath) {
-            window.addEventListener('DOMContentLoaded', function() {
-                loadSwf(swfPath);
-            });
-        }
-
-        function loadSwf(path) {
-            var container = document.getElementById('player-container');
-            container.innerHTML = '';
-
-            // Create object element — Ruffle's MutationObserver should detect it
-            var obj = document.createElement('object');
-            obj.setAttribute('data', path);
-            obj.setAttribute('type', 'application/x-shockwave-flash');
-            obj.setAttribute('width', '800');
-            obj.setAttribute('height', '600');
-
-            var param1 = document.createElement('param');
-            param1.setAttribute('name', 'movie');
-            param1.setAttribute('value', path);
-            obj.appendChild(param1);
-
-            var param2 = document.createElement('param');
-            param2.setAttribute('name', 'quality');
-            param2.setAttribute('value', 'high');
-            obj.appendChild(param2);
-
-            var param3 = document.createElement('param');
-            param3.setAttribute('name', 'bgcolor');
-            param3.setAttribute('value', '#FFFFFF');
-            obj.appendChild(param3);
-
-            container.appendChild(obj);
-
-            document.getElementById('debug-info').textContent = 'DEBUG: object appended, data=' + path;
-
-            // Try to manually trigger Ruffle polyfill if available
-            setTimeout(function() {
-                var debugEl = document.getElementById('debug-info');
-                var objInDom = document.querySelector('#player-container object');
-                var ruffleObj = document.querySelector('#player-container ruffle-object');
-                var objCount = document.querySelectorAll('#player-container object').length;
-                var ruffleCount = document.querySelectorAll('#player-container ruffle-object').length;
-                debugEl.textContent = 'DEBUG: obj=' + objCount + ' ruffle=' + ruffleCount +
-                    ' RufflePlayer=' + (typeof window.RufflePlayer) +
-                    ' Ruffle=' + (window.Ruffle ? 'yes' : 'no');
-            }, 3000);
-        }
 
         fetch('swf/catalog.json')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 catalog = data;
-                document.getElementById('status-badge').textContent =
-                    Object.values(data).reduce(function(s, a) { return s + a.length; }, 0) + ' activities';
+                var total = Object.values(data).reduce(function(s, a) { return s + a.length; }, 0);
+                var as2Count = 0;
+                Object.keys(data).forEach(function(level) {
+                    as2Count += (as2Levels[level] || 0);
+                });
+                document.getElementById('status-badge').textContent = total + ' activities';
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-as2').textContent = as2Count;
+                document.getElementById('stat-as3').textContent = total - as2Count;
                 buildSidebar(data);
-                if (swfPath) {
-                    findCurrentActivity(data);
-                }
             })
             .catch(function(e) {
                 document.getElementById('status-badge').textContent = 'Catalog failed';
@@ -216,7 +149,6 @@
                 group.className = 'level-group';
                 var header = document.createElement('div');
                 header.className = 'level-header';
-                if (String(level) === currentLevel) header.classList.add('active');
                 header.innerHTML = 'Level ' + level + ' <span class="count">' + activities.length + '</span>';
                 header.onclick = function() {
                     var items = group.querySelector('.level-items');
@@ -227,14 +159,13 @@
                 };
                 var items = document.createElement('div');
                 items.className = 'level-items';
-                if (String(level) === currentLevel) items.classList.add('show');
                 activities.forEach(function(act, idx) {
                     var item = document.createElement('a');
                     item.className = 'activity-item';
-                    item.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + level;
-                    if (act.path === swfPath) {
-                        item.classList.add('active');
-                    }
+                    var playerUrl = 'player.html?swf=' + encodeURIComponent(act.path) +
+                        '&base=' + encodeURIComponent(BASE_URL);
+                    item.href = playerUrl;
+                    item.target = '_blank';
                     var as2 = isAS2(level, idx);
                     var badge = as2
                         ? '<span class="badge badge-as2">AS2</span>'
@@ -247,26 +178,6 @@
                 group.appendChild(items);
                 sidebar.appendChild(group);
             });
-        }
-
-        function findCurrentActivity(data) {
-            var levels = Object.keys(data).map(Number).sort(function(a,b) { return a - b; });
-            for (var i = 0; i < levels.length; i++) {
-                var level = levels[i];
-                var activities = data[level];
-                for (var j = 0; j < activities.length; j++) {
-                    if (activities[j].path === swfPath) {
-                        currentActivities = activities;
-                        currentActivityIndex = j;
-                        currentLevel = String(level);
-                        document.getElementById('now-playing').textContent = 'Playing: Activity ' + activities[j].num;
-                        document.getElementById('btn-prev').disabled = j <= 0;
-                        document.getElementById('btn-next').disabled = j >= activities.length - 1;
-                        document.getElementById('btn-reload').disabled = false;
-                        return;
-                    }
-                }
-            }
         }
 
         function buildFallback() {
@@ -285,7 +196,8 @@
                     var path = 'swf/content/' + level + '/swf_' + String(num).padStart(4, '0') + '.swf';
                     var item = document.createElement('a');
                     item.className = 'activity-item';
-                    item.href = 'browser.html?swf=' + encodeURIComponent(path) + '&level=' + level;
+                    item.href = 'player.html?swf=' + encodeURIComponent(path) + '&base=' + encodeURIComponent(BASE_URL);
+                    item.target = '_blank';
                     item.textContent = 'Activity ' + num;
                     items.appendChild(item);
                 }
@@ -294,22 +206,6 @@
                 sidebar.appendChild(group);
             }
         }
-
-        document.getElementById('btn-prev').onclick = function() {
-            if (currentActivityIndex > 0) {
-                var act = currentActivities[currentActivityIndex - 1];
-                window.location.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + currentLevel;
-            }
-        };
-        document.getElementById('btn-next').onclick = function() {
-            if (currentActivityIndex < currentActivities.length - 1) {
-                var act = currentActivities[currentActivityIndex + 1];
-                window.location.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + currentLevel;
-            }
-        };
-        document.getElementById('btn-reload').onclick = function() {
-            window.location.reload();
-        };
     </script>
 </body>
 </html>
