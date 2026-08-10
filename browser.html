@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
-    <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -67,6 +66,10 @@
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
         }
+        #player-container iframe {
+            border: none; width: 800px; height: 600px; display: block;
+            border-radius: 8px;
+        }
         #player-controls { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
         .btn {
             background: #334155; color: #e2e8f0; border: none; padding: 10px 20px;
@@ -106,15 +109,8 @@
         </div>
     </main>
     <script>
-        window.RufflePlayer = window.RufflePlayer || {};
-        window.RufflePlayer.config = {
-            autoplay: 'on',
-            unmuteOverlay: 'visible',
-            backgroundColor: '#FFFFFF',
-            letterbox: 'on',
-            contextMenu: 'off',
-            showSwfDownload: false,
-        };
+        // Detect base URL for absolute paths inside iframe
+        var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
 
         const as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
         let catalog = {};
@@ -212,14 +208,26 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
-            // Use innerHTML to inject object tag — this triggers Ruffle's MutationObserver polyfill
-            // (createElement + appendChild didn't trigger it; innerHTML does)
-            container.innerHTML =
-                '<object data="' + act.path + '" type="application/x-shockwave-flash" width="800" height="600">' +
-                '<param name="movie" value="' + act.path + '">' +
+            // Build absolute URLs for use inside the iframe (srcdoc has no base URL)
+            var swfUrl = BASE_URL + act.path;
+            var ruffleJsUrl = BASE_URL + 'ruffle/web/ruffle.js';
+
+            // Use iframe with srcdoc so the <object> tag is in the initial HTML
+            // This ensures Ruffle's polyfill detects it (like test.html which works)
+            var html =
+                '<!DOCTYPE html><html><head>' +
+                '<script src="' + ruffleJsUrl + '"><\/script>' +
+                '<script>window.RufflePlayer = window.RufflePlayer || {};' +
+                'window.RufflePlayer.config = {autoplay:"on",unmuteOverlay:"visible",' +
+                'backgroundColor:"#FFFFFF",letterbox:"on",contextMenu:"off"};<\/script>' +
+                '</head><body style="margin:0;padding:0;overflow:hidden;background:#fff">' +
+                '<object data="' + swfUrl + '" type="application/x-shockwave-flash" width="800" height="600">' +
+                '<param name="movie" value="' + swfUrl + '">' +
                 '<param name="quality" value="high">' +
                 '<param name="bgcolor" value="#FFFFFF">' +
-                '</object>';
+                '</object></body></html>';
+
+            container.innerHTML = '<iframe srcdoc="' + html.replace(/"/g, '&quot;') + '" width="800" height="600"></iframe>';
 
             document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
