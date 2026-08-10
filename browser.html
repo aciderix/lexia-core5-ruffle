@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
     <script>
-        // Read SWF path from URL parameter BEFORE Ruffle loads
         var params = new URLSearchParams(window.location.search);
         var swfPath = params.get('swf') || '';
         var currentLevel = params.get('level') || '';
 
-        // Set Ruffle config
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             autoplay: 'on',
@@ -99,9 +97,16 @@
         #sidebar::-webkit-scrollbar { width: 6px; }
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        #debug-info {
+            position: fixed; top: 50px; right: 10px; z-index: 9999;
+            background: #1a1a2e; color: #0f0; padding: 8px 12px;
+            font-size: 11px; font-family: monospace; border-radius: 6px;
+            max-width: 300px; word-break: break-all;
+        }
     </style>
 </head>
 <body>
+    <div id="debug-info">DEBUG: swfPath=[<span id="debug-swf"></span>]</div>
     <header>
         <div>
             <h1>Lexia Core5 — Content Browser</h1>
@@ -114,9 +119,12 @@
         <div id="player-area">
             <div id="player-container">
                 <script>
-                    // If a SWF path is specified, inject <object> tag NOW via document.write()
-                    // This must happen during initial HTML parsing so Ruffle's polyfill detects it
+                    // Debug: show swfPath value
+                    document.getElementById('debug-swf').textContent = swfPath || '(empty)';
+
                     if (swfPath) {
+                        // Use document.write to inject <object> during initial HTML parsing
+                        // Ruffle polyfill detects objects in the initial DOM
                         document.write(
                             '<object data="' + swfPath + '" type="application/x-shockwave-flash" width="800" height="600">' +
                             '<param name="movie" value="' + swfPath + '">' +
@@ -152,7 +160,6 @@
                 document.getElementById('status-badge').textContent =
                     Object.values(data).reduce(function(s, a) { return s + a.length; }, 0) + ' activities';
                 buildSidebar(data);
-                // If we loaded a specific SWF, find it in the catalog and set up controls
                 if (swfPath) {
                     findCurrentActivity(data);
                 }
@@ -184,7 +191,6 @@
                     items.classList.toggle('show');
                     header.classList.toggle('active');
                 };
-                // Auto-expand the current level
                 var items = document.createElement('div');
                 items.className = 'level-items';
                 if (String(level) === currentLevel) items.classList.add('show');
@@ -194,8 +200,6 @@
                     item.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + level;
                     if (act.path === swfPath) {
                         item.classList.add('active');
-                        currentActivityIndex = idx;
-                        currentActivities = activities;
                     }
                     var as2 = isAS2(level, idx);
                     var badge = as2
@@ -212,7 +216,6 @@
         }
 
         function findCurrentActivity(data) {
-            // Find which level/activity matches the current swfPath
             var levels = Object.keys(data).map(Number).sort(function(a,b) { return a - b; });
             for (var i = 0; i < levels.length; i++) {
                 var level = levels[i];
@@ -258,7 +261,6 @@
             }
         }
 
-        // Navigation buttons — navigate to prev/next activity
         document.getElementById('btn-prev').onclick = function() {
             if (currentActivityIndex > 0) {
                 var act = currentActivities[currentActivityIndex - 1];
