@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ruffle Minimal Test</title>
+<script src="ruffle/web/ruffle.js"></script>
+<style>
+body { margin: 0; background: #333; }
+#test { width: 800px; height: 600px; margin: 20px auto; }
+#log { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace; font-size: 12px; padding: 10px; max-height: 200px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div id="test">
+  <object data="swf/content/2/swf_0200.swf" type="application/x-shockwave-flash" width="800" height="600">
+    <param name="movie" value="swf/content/2/swf_0200.swf">
+    <param name="quality" value="high">
+    Flash not loaded.
+  </object>
+</div>
+<div id="log"></div>
+<script>
+function log(msg) {
+  var el = document.getElementById('log');
+  el.innerHTML = new Date().toLocaleTimeString() + ' ' + msg + '<br>' + el.innerHTML;
+}
+
+window.onerror = function(msg, url, line, col, err) {
+  log('ERROR: ' + msg + ' at ' + url + ':' + line + ':' + col);
+  if (err && err.stack) log('STACK: ' + err.stack);
+  return false;
+};
+
+window.RufflePlayer = window.RufflePlayer || {};
+window.RufflePlayer.config = {
+  autoplay: 'on',
+  unmuteOverlay: 'visible',
+  backgroundColor: '#FFFFFF',
+  letterbox: 'on',
+};
+
+// Monitor what happens with the object tag
+window.addEventListener('DOMContentLoaded', function() {
+  log('DOMContentLoaded');
+  var obj = document.querySelector('object');
+  log('Object element: ' + (obj ? obj.tagName : 'null'));
+  
+  // Check periodically what Ruffle does
+  var checks = 0;
+  var interval = setInterval(function() {
+    checks++;
+    var test = document.getElementById('test');
+    var child = test.children[0];
+    if (child) {
+      log('Check ' + checks + ': child=' + child.tagName + ' w=' + child.offsetWidth + ' h=' + child.offsetHeight);
+      if (child.shadowRoot) {
+        var canvas = child.shadowRoot.querySelector('canvas');
+        if (canvas) {
+          log('Canvas: ' + canvas.width + 'x' + canvas.height + ' style=' + canvas.style.cssText);
+          // Try to read canvas content
+          try {
+            var ctx = canvas.getContext('2d');
+            if (ctx) {
+              var imgData = ctx.getImageData(0, 0, Math.min(canvas.width, 10), Math.min(canvas.height, 10));
+              var allBlack = true;
+              var allWhite = true;
+              for (var i = 0; i < imgData.data.length; i += 4) {
+                if (imgData.data[i] > 10 || imgData.data[i+1] > 10 || imgData.data[i+2] > 10) allBlack = false;
+                if (imgData.data[i] < 240 || imgData.data[i+1] < 240 || imgData.data[i+2] < 240) allWhite = false;
+              }
+              log('Pixel check: allBlack=' + allBlack + ' allWhite=' + allWhite);
+            }
+          } catch(e) {
+            log('Canvas read error: ' + e.message);
+          }
+        } else {
+          log('No canvas in shadow root');
+          // List shadow root children
+          if (child.shadowRoot) {
+            log('Shadow children: ' + child.shadowRoot.children.length);
+            for (var i = 0; i < child.shadowRoot.children.length; i++) {
+              log('  Shadow child ' + i + ': ' + child.shadowRoot.children[i].tagName);
+            }
+          }
+        }
+      } else {
+        log('No shadow root');
+      }
+    } else {
+      log('Check ' + checks + ': no child');
+    }
+    if (checks >= 10) clearInterval(interval);
+  }, 2000);
+});
+
+// Capture console errors
+var origError = console.error;
+console.error = function() {
+  var args = Array.from(arguments);
+  log('console.error: ' + args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '));
+  origError.apply(console, arguments);
+};
+
+var origWarn = console.warn;
+console.warn = function() {
+  var args = Array.from(arguments);
+  log('console.warn: ' + args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '));
+  origWarn.apply(console, arguments);
+};
+
+log('Script loaded, RufflePlayer: ' + (window.RufflePlayer ? 'exists' : 'null'));
+</script>
+</body>
+</html>
