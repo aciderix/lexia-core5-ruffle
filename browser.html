@@ -67,8 +67,7 @@
             color: #475569; font-size: 16px; text-align: center;
         }
         #player-container iframe {
-            border: none; width: 800px; height: 600px; display: block;
-            border-radius: 8px;
+            border: none; display: block; border-radius: 8px;
         }
         #player-controls { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
         .btn {
@@ -117,6 +116,7 @@
         let currentLevel = null;
         let currentActivityIndex = -1;
         let currentActivities = [];
+        let currentBlobUrl = null;
 
         fetch('swf/catalog.json')
             .then(r => r.json())
@@ -208,26 +208,54 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
-            // Build absolute URLs for use inside the iframe (srcdoc has no base URL)
+            // Revoke previous blob URL
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+            }
+
+            // Build absolute URLs for use inside the iframe
             var swfUrl = BASE_URL + act.path;
             var ruffleJsUrl = BASE_URL + 'ruffle/web/ruffle.js';
 
-            // Use iframe with srcdoc so the <object> tag is in the initial HTML
-            // This ensures Ruffle's polyfill detects it (like test.html which works)
+            // Build full HTML document with <object> tag in initial HTML
+            // Ruffle polyfill only works when object is in the initial DOM
             var html =
                 '<!DOCTYPE html><html><head>' +
-                '<script src="' + ruffleJsUrl + '"><\/script>' +
-                '<script>window.RufflePlayer = window.RufflePlayer || {};' +
-                'window.RufflePlayer.config = {autoplay:"on",unmuteOverlay:"visible",' +
-                'backgroundColor:"#FFFFFF",letterbox:"on",contextMenu:"off"};<\/script>' +
-                '</head><body style="margin:0;padding:0;overflow:hidden;background:#fff">' +
-                '<object data="' + swfUrl + '" type="application/x-shockwave-flash" width="800" height="600">' +
-                '<param name="movie" value="' + swfUrl + '">' +
-                '<param name="quality" value="high">' +
-                '<param name="bgcolor" value="#FFFFFF">' +
-                '</object></body></html>';
+                '<script>\n' +
+                'window.RufflePlayer = window.RufflePlayer || {};\n' +
+                'window.RufflePlayer.config = {\n' +
+                '  autoplay: "on",\n' +
+                '  unmuteOverlay: "visible",\n' +
+                '  backgroundColor: "#FFFFFF",\n' +
+                '  letterbox: "on",\n' +
+                '  contextMenu: "off"\n' +
+                '};\n' +
+                '</scr' + 'ipt>\n' +
+                '<script src="' + ruffleJsUrl + '"></scr' + 'ipt>\n' +
+                '</head>\n' +
+                '<body style="margin:0;padding:0;overflow:hidden;background:#fff">\n' +
+                '<object data="' + swfUrl + '" type="application/x-shockwave-flash" width="800" height="600">\n' +
+                '  <param name="movie" value="' + swfUrl + '">\n' +
+                '  <param name="quality" value="high">\n' +
+                '  <param name="bgcolor" value="#FFFFFF">\n' +
+                '</object>\n' +
+                '</body></html>';
 
-            container.innerHTML = '<iframe srcdoc="' + html.replace(/"/g, '&quot;') + '" width="800" height="600"></iframe>';
+            // Create blob URL for the iframe
+            var blob = new Blob([html], { type: 'text/html' });
+            currentBlobUrl = URL.createObjectURL(blob);
+
+            // Create iframe with blob URL
+            var iframe = document.createElement('iframe');
+            iframe.src = currentBlobUrl;
+            iframe.style.width = '800px';
+            iframe.style.height = '600px';
+            iframe.style.border = 'none';
+            iframe.style.display = 'block';
+            iframe.style.borderRadius = '8px';
+
+            container.innerHTML = '';
+            container.appendChild(iframe);
 
             document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
