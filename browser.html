@@ -8,19 +8,13 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #0f172a;
-            color: #e2e8f0;
+            background: #0f172a; color: #e2e8f0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+            min-height: 100vh; display: flex; flex-direction: column;
         }
         header {
             background: linear-gradient(135deg, #1e3a5f, #2563eb);
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         header h1 { font-size: 22px; font-weight: 600; color: #fff; }
@@ -36,9 +30,9 @@
         }
         .level-group { border-bottom: 1px solid #334155; }
         .level-header {
-            padding: 14px 18px; cursor: pointer;
-            display: flex; align-items: center; justify-content: space-between;
-            transition: background 0.15s; font-weight: 600; font-size: 15px; color: #cbd5e1;
+            padding: 14px 18px; cursor: pointer; display: flex; align-items: center;
+            justify-content: space-between; transition: background 0.15s; font-weight: 600;
+            font-size: 15px; color: #cbd5e1;
         }
         .level-header:hover { background: #334155; }
         .level-header.active { background: #2563eb; color: #fff; }
@@ -51,8 +45,7 @@
         .level-items.show { display: block; }
         .activity-item {
             padding: 8px 18px 8px 36px; cursor: pointer; font-size: 13px; color: #94a3b8;
-            display: flex; align-items: center; justify-content: space-between;
-            transition: all 0.15s;
+            display: flex; align-items: center; justify-content: space-between; transition: all 0.15s;
         }
         .activity-item:hover { background: #334155; color: #e2e8f0; }
         .activity-item.active { background: #1e40af; color: #fff; }
@@ -61,18 +54,18 @@
         .badge-as3 { background: #b45309; color: #fef3c7; }
         .activity-item .size { font-size: 11px; color: #475569; }
         #player-area {
-            flex: 1; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; padding: 20px; position: relative;
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 20px; position: relative;
         }
-        #player-wrapper {
-            width: 100%; max-width: 1000px; aspect-ratio: 4/3;
-            background: #000; border-radius: 8px; overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.5); position: relative;
+        #player-container {
+            width: 100%; max-width: 1000px; aspect-ratio: 4/3; background: #000;
+            border-radius: 8px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            position: relative;
         }
-        #player-wrapper canvas, #player-wrapper > * { width: 100% !important; height: 100% !important; }
+        #player-container ruffle-embed { width: 100%; height: 100%; display: block; }
         #placeholder {
-            display: flex; align-items: center; justify-content: center;
-            height: 100%; color: #475569; font-size: 16px; text-align: center;
+            display: flex; align-items: center; justify-content: center; height: 100%;
+            color: #475569; font-size: 16px; text-align: center;
         }
         #player-controls { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
         .btn {
@@ -85,18 +78,14 @@
         .btn-primary { background: #2563eb; }
         .btn-primary:hover { background: #1d4ed8; }
         #now-playing { color: #64748b; font-size: 13px; }
-        #loading-indicator {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #64748b; font-size: 14px; display: none;
+        #debug-log {
+            position: fixed; bottom: 0; right: 0; width: 350px; max-height: 150px;
+            background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace; font-size: 11px;
+            padding: 8px; overflow-y: auto; z-index: 9999; border-top-left-radius: 8px;
         }
         #sidebar::-webkit-scrollbar { width: 6px; }
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        #debug-log {
-            position: fixed; bottom: 0; right: 0; width: 300px; max-height: 200px;
-            background: rgba(0,0,0,0.8); color: #0f0; font-family: monospace; font-size: 11px;
-            padding: 8px; overflow-y: auto; z-index: 9999; border-top-left-radius: 8px;
-        }
     </style>
 </head>
 <body>
@@ -110,9 +99,8 @@
     <main>
         <div id="sidebar"></div>
         <div id="player-area">
-            <div id="player-wrapper">
+            <div id="player-container">
                 <div id="placeholder">Select an activity from the sidebar to start</div>
-                <div id="loading-indicator">Loading SWF...</div>
             </div>
             <div id="player-controls">
                 <button class="btn" id="btn-prev" disabled>← Prev</button>
@@ -129,7 +117,6 @@
             el.innerHTML = new Date().toLocaleTimeString() + ' ' + msg + '<br>' + el.innerHTML;
         }
 
-        // Configure Ruffle
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             autoplay: 'on',
@@ -140,32 +127,11 @@
             showSwfDownload: false,
         };
 
-        log('Ruffle config set, waiting for ruffle.js...');
-
-        // Check if Ruffle is loaded
-        function waitForRuffle(callback, attempts) {
-            attempts = attempts || 0;
-            if (window.RufflePlayer && window.RufflePlayer.init) {
-                log('Ruffle init found at attempt ' + attempts);
-                window.RufflePlayer.init().then(() => {
-                    log('Ruffle initialized');
-                    callback();
-                }).catch(e => {
-                    log('Ruffle init error: ' + e.message);
-                });
-            } else if (attempts < 50) {
-                setTimeout(() => waitForRuffle(callback, attempts + 1), 200);
-            } else {
-                log('Ruffle failed to load after 10s');
-            }
-        }
-
         const as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
         let catalog = {};
         let currentLevel = null;
         let currentActivityIndex = -1;
         let currentActivities = [];
-        let rufflePlayer = null;
 
         fetch('swf/catalog.json')
             .then(r => r.json())
@@ -174,10 +140,10 @@
                 document.getElementById('status-badge').textContent =
                     Object.values(data).reduce((s, a) => s + a.length, 0) + ' activities';
                 buildSidebar(data);
-                log('Catalog loaded: ' + Object.keys(data).length + ' levels');
+                log('Catalog loaded');
             })
             .catch(e => {
-                document.getElementById('status-badge').textContent = 'Catalog failed - using fallback';
+                document.getElementById('status-badge').textContent = 'Catalog failed';
                 log('Catalog error: ' + e.message);
                 buildFallback();
             });
@@ -257,65 +223,66 @@
         }
 
         function loadActivity(act) {
-            const wrapper = document.getElementById('player-wrapper');
-            const placeholder = document.getElementById('placeholder');
-            const loading = document.getElementById('loading-indicator');
-            placeholder.style.display = 'none';
-            loading.style.display = 'block';
+            const container = document.getElementById('player-container');
             log('Loading: ' + act.path);
 
-            // Destroy existing player
-            if (rufflePlayer) {
-                try { rufflePlayer.remove(); } catch(e) {}
-                rufflePlayer = null;
-            }
-            wrapper.innerHTML = '<div id="loading-indicator">Loading SWF...</div>';
+            // Clear container
+            container.innerHTML = '';
 
-            // Use Ruffle's JS API to create the player
-            const ruffle = window.RufflePlayer || {};
-            log('RufflePlayer keys: ' + Object.keys(ruffle).join(','));
+            // Create ruffle-embed element
+            const embed = document.createElement('ruffle-embed');
+            embed.setAttribute('src', act.path);
+            embed.setAttribute('width', '100%');
+            embed.setAttribute('height', '100%');
+            embed.style.width = '100%';
+            embed.style.height = '100%';
+            embed.style.display = 'block';
 
-            if (ruffle.newest && typeof ruffle.newest === 'function') {
-                log('Using Ruffle.newest() API');
-                const player = ruffle.newest();
-                if (player) {
-                    log('Player created: ' + player.version);
-                    rufflePlayer = player.createPlayer();
-                    wrapper.appendChild(rufflePlayer);
-                    rufflePlayer.style.width = '100%';
-                    rufflePlayer.style.height = '100%';
-                    rufflePlayer.loadFile(act.path).then(() => {
-                        log('SWF loaded successfully!');
-                        loading.style.display = 'none';
-                        document.getElementById('now-playing').textContent = 'Playing: ' + act.path;
-                    }).catch(e => {
-                        log('Load error: ' + e.message);
-                        loading.style.display = 'none';
-                        const isAS3 = !isAS2(currentLevel, currentActivityIndex);
-                        wrapper.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px">Failed to load</p><p style="font-size:13px;color:#64748b">' + (isAS3 ? 'AS3 SWF - Ruffle may not support it yet' : e.message) + '</p></div></div>';
-                    });
+            // Listen for events
+            embed.addEventListener('loaded', (e) => {
+                log('SWF loaded event!');
+                document.getElementById('now-playing').textContent = 'Playing: ' + act.path;
+            });
+
+            embed.addEventListener('error', (e) => {
+                log('SWF error event: ' + (e.detail ? JSON.stringify(e.detail) : 'unknown'));
+                const isAS3 = !isAS2(currentLevel, currentActivityIndex);
+                container.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px;color:#ef4444">Failed to load</p><p style="font-size:13px;color:#64748b">' + (isAS3 ? 'AS3 SWF - Ruffle may not support it yet' : 'Unknown error') + '</p></div></div>';
+            });
+
+            container.appendChild(embed);
+            log('ruffle-embed created, src=' + act.path);
+
+            // Check if custom element was upgraded
+            setTimeout(() => {
+                if (embed.constructor.name === 'HTMLElement' || embed.constructor.name === 'HTMLUnknownElement') {
+                    log('WARNING: ruffle-embed not upgraded! Custom element not registered.');
+                    // Try direct API fallback
+                    try {
+                        const ruffle = window.RufflePlayer;
+                        if (ruffle.newest) {
+                            const player = ruffle.newest();
+                            if (player) {
+                                log('Trying createPlayer API...');
+                                const p = player.createPlayer();
+                                container.innerHTML = '';
+                                container.appendChild(p);
+                                p.style.width = '100%';
+                                p.style.height = '100%';
+                                p.loadFile(act.path, { autoplay: 'on' }).then(() => {
+                                    log('loadFile succeeded!');
+                                }).catch(e => {
+                                    log('loadFile error: ' + e.message);
+                                });
+                            }
+                        }
+                    } catch(err) {
+                        log('API fallback error: ' + err.message);
+                    }
                 } else {
-                    log('ruffle.newest() returned null');
+                    log('ruffle-embed upgraded OK: ' + embed.constructor.name);
                 }
-            } else {
-                log('Ruffle.newest not found, trying fallback...');
-                // Fallback: use ruffle-embed custom element
-                const embed = document.createElement('ruffle-embed');
-                embed.setAttribute('src', act.path);
-                embed.style.width = '100%';
-                embed.style.height = '100%';
-                embed.addEventListener('loaded', () => {
-                    loading.style.display = 'none';
-                    document.getElementById('now-playing').textContent = 'Playing: ' + act.path;
-                    log('SWF loaded via custom element');
-                });
-                embed.addEventListener('error', (e) => {
-                    loading.style.display = 'none';
-                    log('SWF error via custom element');
-                    wrapper.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px">Failed to load</p></div></div>';
-                });
-                wrapper.appendChild(embed);
-            }
+            }, 2000);
 
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
             document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
