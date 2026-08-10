@@ -121,7 +121,6 @@
         let currentLevel = null;
         let currentActivityIndex = -1;
         let currentActivities = [];
-        let rufflePlayer = null;
 
         fetch('swf/catalog.json')
             .then(r => r.json())
@@ -213,24 +212,14 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
-            // Remove previous player if exists
-            if (rufflePlayer) {
-                rufflePlayer.remove();
-                rufflePlayer = null;
-            }
-            container.innerHTML = '';
-
-            // Use Ruffle JS API to create a player instance
-            const ruffle = window.RufflePlayer.newest();
-            rufflePlayer = ruffle.createPlayer();
-            rufflePlayer.style.width = '800px';
-            rufflePlayer.style.height = '600px';
-            rufflePlayer.style.display = 'block';
-
-            container.appendChild(rufflePlayer);
-
-            // Load the SWF
-            rufflePlayer.load({ url: act.path });
+            // Use innerHTML to inject object tag — this triggers Ruffle's MutationObserver polyfill
+            // (createElement + appendChild didn't trigger it; innerHTML does)
+            container.innerHTML =
+                '<object data="' + act.path + '" type="application/x-shockwave-flash" width="800" height="600">' +
+                '<param name="movie" value="' + act.path + '">' +
+                '<param name="quality" value="high">' +
+                '<param name="bgcolor" value="#FFFFFF">' +
+                '</object>';
 
             document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
