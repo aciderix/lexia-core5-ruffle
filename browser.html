@@ -62,7 +62,14 @@
             border-radius: 8px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
             position: relative;
         }
-        #player-container > * { width: 100% !important; height: 100% !important; }
+        #player-container ruffle-embed,
+        #player-container ruffle-object,
+        #player-container ruffle-player {
+            width: 100% !important; height: 100% !important; display: block;
+        }
+        #player-container canvas {
+            width: 100% !important; height: 100% !important;
+        }
         #placeholder {
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
@@ -78,18 +85,14 @@
         .btn-primary { background: #2563eb; }
         .btn-primary:hover { background: #1d4ed8; }
         #now-playing { color: #64748b; font-size: 13px; }
-        #loading-indicator {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #64748b; font-size: 14px; display: none;
-        }
+        #sidebar::-webkit-scrollbar { width: 6px; }
+        #sidebar::-webkit-scrollbar-track { background: #1e293b; }
+        #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
         #debug-log {
             position: fixed; bottom: 0; right: 0; width: 350px; max-height: 150px;
             background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace; font-size: 11px;
             padding: 8px; overflow-y: auto; z-index: 9999; border-top-left-radius: 8px;
         }
-        #sidebar::-webkit-scrollbar { width: 6px; }
-        #sidebar::-webkit-scrollbar-track { background: #1e293b; }
-        #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -105,7 +108,6 @@
         <div id="player-area">
             <div id="player-container">
                 <div id="placeholder">Select an activity from the sidebar to start</div>
-                <div id="loading-indicator">Loading SWF...</div>
             </div>
             <div id="player-controls">
                 <button class="btn" id="btn-prev" disabled>← Prev</button>
@@ -137,7 +139,6 @@
         let currentLevel = null;
         let currentActivityIndex = -1;
         let currentActivities = [];
-        let rufflePlayer = null;
 
         fetch('swf/catalog.json')
             .then(r => r.json())
@@ -230,69 +231,95 @@
 
         function loadActivity(act) {
             const container = document.getElementById('player-container');
-            const loading = document.getElementById('loading-indicator');
             log('Loading: ' + act.path);
 
-            // Destroy existing player
-            if (rufflePlayer) {
-                try { rufflePlayer.remove(); } catch(e) {}
-                rufflePlayer = null;
-            }
+            // Clear container
             container.innerHTML = '';
-            loading.style.display = 'block';
-            loading.textContent = 'Loading SWF...';
 
-            // Wait for Ruffle to be ready, then create player
-            function tryCreate() {
+            // Check if custom element is registered
+            const isRegistered = customElements.get('ruffle-embed') !== undefined;
+            log('ruffle-embed registered: ' + isRegistered);
+
+            if (isRegistered) {
+                // Use custom element approach
+                log('Using ruffle-embed custom element');
+                const embed = document.createElement('ruffle-embed');
+                embed.setAttribute('src', act.path);
+                embed.style.width = '100%';
+                embed.style.height = '100%';
+                embed.style.display = 'block';
+
+                embed.addEventListener('loaded', () => {
+                    log('SWF loaded event!');
+                    document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
+                });
+
+                embed.addEventListener('error', (e) => {
+                    log('SWF error: ' + (e.detail ? JSON.stringify(e.detail) : 'unknown'));
+                    const isAS3 = !isAS2(currentLevel, currentActivityIndex);
+                    container.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px;color:#ef4444">Failed to load</p><p style="font-size:13px;color:#64748b">' + (isAS3 ? 'AS3 SWF - Ruffle may not support it yet' : 'Unknown error') + '</p></div></div>';
+                });
+
+                container.appendChild(embed);
+                log('ruffle-embed appended to container');
+            } else {
+                // Use JS API as fallback
+                log('Custom element not registered, using JS API');
                 const ruffle = window.RufflePlayer;
-                if (ruffle && ruffle.newest && typeof ruffle.newest === 'function') {
+                if (ruffle && ruffle.newest) {
                     const newest = ruffle.newest();
                     if (newest) {
-                        log('Ruffle ready, version: ' + newest.version);
+                        log('Ruffle version: ' + newest.version);
                         try {
                             const player = newest.createPlayer();
                             container.appendChild(player);
                             player.style.width = '100%';
                             player.style.height = '100%';
-                            rufflePlayer = player;
-                            log('Player created, calling ruffle().load()...');
+                            log('Player element appended, tag: ' + player.tagName);
 
-                            const ruffleInstance = player.ruffle();
-                            log('ruffle() returned: ' + (ruffleInstance ? 'instance' : 'null'));
-                            if (ruffleInstance) {
-                                ruffleInstance.load(act.path).then(() => {
-                                    log('SWF loaded successfully!');
-                                    loading.style.display = 'none';
+                            const ruffleInst = player.ruffle ? player.ruffle() : null;
+                            if (ruffleInst) {
+                                ruffleInst.load(act.path).then(() => {
+                                    log('SWF loaded via API!');
                                     document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
                                 }).catch(e => {
-                                    log('load error: ' + e.message);
-                                    loading.style.display = 'none';
-                                    container.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px;color:#ef4444">Failed to load</p><p style="font-size:13px;color:#64748b">' + e.message + '</p></div></div>';
+                                    log('API load error: ' + e.message);
                                 });
                             } else {
-                                log('ruffle() returned null, trying loadFile...');
-                                if (player.loadFile) {
-                                    player.loadFile(act.path).then(() => {
-                                        log('loadFile succeeded!');
-                                        loading.style.display = 'none';
-                                    }).catch(e => log('loadFile error: ' + e.message));
-                                } else {
-                                    log('No load method found on player');
-                                    loading.style.display = 'none';
+                                log('No ruffle() method on player, checking other methods...');
+                                log('Player methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(player)).join(', '));
+                                if (player.load) {
+                                    player.load(act.path).then(() => {
+                                        log('SWF loaded via player.load()!');
+                                        document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
+                                    }).catch(e => log('player.load error: ' + e.message));
                                 }
                             }
                         } catch(err) {
-                            log('createPlayer error: ' + err.message);
-                            loading.style.display = 'none';
+                            log('API error: ' + err.message + ' | ' + err.stack);
                         }
-                        return;
+                    } else {
+                        log('ruffle.newest() returned null');
+                    }
+                } else {
+                    log('Ruffle not available');
+                }
+            }
+
+            // Log container children after 2 seconds
+            setTimeout(() => {
+                log('Container children: ' + container.children.length + ' | innerHTML length: ' + container.innerHTML.length);
+                if (container.children.length > 0) {
+                    log('First child: ' + container.children[0].tagName + ' | w:' + container.children[0].offsetWidth + ' h:' + container.children[0].offsetHeight);
+                    // Check for canvas inside
+                    const canvas = container.querySelector('canvas');
+                    if (canvas) {
+                        log('Canvas found: ' + canvas.width + 'x' + canvas.height);
+                    } else {
+                        log('No canvas in container');
                     }
                 }
-                // Ruffle not ready yet
-                log('Waiting for Ruffle...');
-                setTimeout(tryCreate, 200);
-            }
-            tryCreate();
+            }, 3000);
 
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
             document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
