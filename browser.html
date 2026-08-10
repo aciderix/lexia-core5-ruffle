@@ -23,7 +23,7 @@
             font-size: 12px; padding: 4px 12px; border-radius: 12px;
             background: rgba(255,255,255,0.15); color: #bfdbfe;
         }
-        main { display: flex; flex: 1; overflow: hidden; }
+        main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
         #sidebar {
             width: 280px; background: #1e293b; border-right: 1px solid #334155;
             overflow-y: auto; flex-shrink: 0;
@@ -55,12 +55,11 @@
         .activity-item .size { font-size: 11px; color: #475569; }
         #player-area {
             flex: 1; display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 20px; position: relative;
+            justify-content: center; padding: 20px; position: relative; min-width: 0;
         }
         #player-container {
-            width: 100%; max-width: 1000px; aspect-ratio: 4/3; background: #fff;
-            border-radius: 8px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-            position: relative;
+            background: #fff; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5); position: relative;
         }
         #placeholder {
             display: flex; align-items: center; justify-content: center; height: 100%;
@@ -121,6 +120,30 @@
         let currentActivityIndex = -1;
         let currentActivities = [];
 
+        // Calculate and set container dimensions in pixels
+        function sizeContainer() {
+            const area = document.getElementById('player-area');
+            const container = document.getElementById('player-container');
+            const availW = area.clientWidth - 40; // minus padding
+            const availH = area.clientHeight - 60; // minus controls + padding
+            const ratio = 4/3;
+            let w, h;
+            if (availW / availH > ratio) {
+                h = Math.max(availH, 200);
+                w = h * ratio;
+            } else {
+                w = Math.max(availW, 200);
+                h = w / ratio;
+            }
+            w = Math.min(w, 1000);
+            h = w / ratio;
+            container.style.width = Math.round(w) + 'px';
+            container.style.height = Math.round(h) + 'px';
+            return { w: Math.round(w), h: Math.round(h) };
+        }
+
+        window.addEventListener('resize', sizeContainer);
+
         fetch('swf/catalog.json')
             .then(r => r.json())
             .then(data => {
@@ -128,10 +151,12 @@
                 document.getElementById('status-badge').textContent =
                     Object.values(data).reduce((s, a) => s + a.length, 0) + ' activities';
                 buildSidebar(data);
+                sizeContainer();
             })
             .catch(e => {
                 document.getElementById('status-badge').textContent = 'Catalog failed';
                 buildFallback();
+                sizeContainer();
             });
 
         function isAS2(level, index) {
@@ -211,21 +236,20 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
+            // Ensure container has proper dimensions
+            const dims = sizeContainer();
+
             // Clear container
             container.innerHTML = '';
 
-            // Get container dimensions in pixels (Ruffle needs explicit pixel sizes)
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-
-            // Create object tag with explicit pixel dimensions
+            // Create object tag with explicit pixel dimensions (Ruffle needs this)
             const obj = document.createElement('object');
             obj.setAttribute('data', act.path);
             obj.setAttribute('type', 'application/x-shockwave-flash');
-            obj.setAttribute('width', w);
-            obj.setAttribute('height', h);
-            obj.style.width = w + 'px';
-            obj.style.height = h + 'px';
+            obj.setAttribute('width', dims.w);
+            obj.setAttribute('height', dims.h);
+            obj.style.width = dims.w + 'px';
+            obj.style.height = dims.h + 'px';
             obj.style.display = 'block';
 
             container.appendChild(obj);
