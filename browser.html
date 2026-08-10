@@ -101,12 +101,12 @@
             position: fixed; top: 50px; right: 10px; z-index: 9999;
             background: #1a1a2e; color: #0f0; padding: 8px 12px;
             font-size: 11px; font-family: monospace; border-radius: 6px;
-            max-width: 300px; word-break: break-all;
+            max-width: 400px; word-break: break-all;
         }
     </style>
 </head>
 <body>
-    <div id="debug-info">DEBUG: swfPath=[<span id="debug-swf"></span>]</div>
+    <div id="debug-info">DEBUG: initializing...</div>
     <header>
         <div>
             <h1>Lexia Core5 — Content Browser</h1>
@@ -118,24 +118,7 @@
         <div id="sidebar"></div>
         <div id="player-area">
             <div id="player-container">
-                <script>
-                    // Debug: show swfPath value
-                    document.getElementById('debug-swf').textContent = swfPath || '(empty)';
-
-                    if (swfPath) {
-                        // Use document.write to inject <object> during initial HTML parsing
-                        // Ruffle polyfill detects objects in the initial DOM
-                        document.write(
-                            '<object data="' + swfPath + '" type="application/x-shockwave-flash" width="800" height="600">' +
-                            '<param name="movie" value="' + swfPath + '">' +
-                            '<param name="quality" value="high">' +
-                            '<param name="bgcolor" value="#FFFFFF">' +
-                            '</object>'
-                        );
-                    } else {
-                        document.write('<div id="placeholder">Select an activity from the sidebar to start</div>');
-                    }
-                </script>
+                <div id="placeholder">Select an activity from the sidebar to start</div>
             </div>
             <div id="player-controls">
                 <button class="btn" id="btn-prev" disabled>← Prev</button>
@@ -147,11 +130,62 @@
     </main>
     <script>
         var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
-
         var as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
         var catalog = {};
         var currentActivities = [];
         var currentActivityIndex = -1;
+
+        document.getElementById('debug-info').textContent = 'DEBUG: swfPath=' + swfPath;
+
+        // If a SWF is specified, load it after DOM is ready
+        if (swfPath) {
+            window.addEventListener('DOMContentLoaded', function() {
+                loadSwf(swfPath);
+            });
+        }
+
+        function loadSwf(path) {
+            var container = document.getElementById('player-container');
+            container.innerHTML = '';
+
+            // Create object element — Ruffle's MutationObserver should detect it
+            var obj = document.createElement('object');
+            obj.setAttribute('data', path);
+            obj.setAttribute('type', 'application/x-shockwave-flash');
+            obj.setAttribute('width', '800');
+            obj.setAttribute('height', '600');
+
+            var param1 = document.createElement('param');
+            param1.setAttribute('name', 'movie');
+            param1.setAttribute('value', path);
+            obj.appendChild(param1);
+
+            var param2 = document.createElement('param');
+            param2.setAttribute('name', 'quality');
+            param2.setAttribute('value', 'high');
+            obj.appendChild(param2);
+
+            var param3 = document.createElement('param');
+            param3.setAttribute('name', 'bgcolor');
+            param3.setAttribute('value', '#FFFFFF');
+            obj.appendChild(param3);
+
+            container.appendChild(obj);
+
+            document.getElementById('debug-info').textContent = 'DEBUG: object appended, data=' + path;
+
+            // Try to manually trigger Ruffle polyfill if available
+            setTimeout(function() {
+                var debugEl = document.getElementById('debug-info');
+                var objInDom = document.querySelector('#player-container object');
+                var ruffleObj = document.querySelector('#player-container ruffle-object');
+                var objCount = document.querySelectorAll('#player-container object').length;
+                var ruffleCount = document.querySelectorAll('#player-container ruffle-object').length;
+                debugEl.textContent = 'DEBUG: obj=' + objCount + ' ruffle=' + ruffleCount +
+                    ' RufflePlayer=' + (typeof window.RufflePlayer) +
+                    ' Ruffle=' + (window.Ruffle ? 'yes' : 'no');
+            }, 3000);
+        }
 
         fetch('swf/catalog.json')
             .then(function(r) { return r.json(); })
