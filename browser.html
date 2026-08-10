@@ -108,7 +108,7 @@
         </div>
     </main>
     <script>
-        // Detect base URL for absolute paths inside iframe
+        // Get base URL for relative paths
         var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
 
         const as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
@@ -116,7 +116,6 @@
         let currentLevel = null;
         let currentActivityIndex = -1;
         let currentActivities = [];
-        let currentBlobUrl = null;
 
         fetch('swf/catalog.json')
             .then(r => r.json())
@@ -208,54 +207,13 @@
         function loadActivity(act) {
             const container = document.getElementById('player-container');
 
-            // Revoke previous blob URL
-            if (currentBlobUrl) {
-                URL.revokeObjectURL(currentBlobUrl);
-            }
+            // Build URL for player.html with SWF path and base URL as query params
+            // player.html uses document.write() to inject <object> before Ruffle scans DOM
+            var playerUrl = BASE_URL + 'player.html?swf=' + encodeURIComponent(act.path) + '&base=' + encodeURIComponent(BASE_URL);
 
-            // Build absolute URLs for use inside the iframe
-            var swfUrl = BASE_URL + act.path;
-            var ruffleJsUrl = BASE_URL + 'ruffle/web/ruffle.js';
-
-            // Build full HTML document with <object> tag in initial HTML
-            // Ruffle polyfill only works when object is in the initial DOM
-            var html =
-                '<!DOCTYPE html><html><head>' +
-                '<script>\n' +
-                'window.RufflePlayer = window.RufflePlayer || {};\n' +
-                'window.RufflePlayer.config = {\n' +
-                '  autoplay: "on",\n' +
-                '  unmuteOverlay: "visible",\n' +
-                '  backgroundColor: "#FFFFFF",\n' +
-                '  letterbox: "on",\n' +
-                '  contextMenu: "off"\n' +
-                '};\n' +
-                '</scr' + 'ipt>\n' +
-                '<script src="' + ruffleJsUrl + '"></scr' + 'ipt>\n' +
-                '</head>\n' +
-                '<body style="margin:0;padding:0;overflow:hidden;background:#fff">\n' +
-                '<object data="' + swfUrl + '" type="application/x-shockwave-flash" width="800" height="600">\n' +
-                '  <param name="movie" value="' + swfUrl + '">\n' +
-                '  <param name="quality" value="high">\n' +
-                '  <param name="bgcolor" value="#FFFFFF">\n' +
-                '</object>\n' +
-                '</body></html>';
-
-            // Create blob URL for the iframe
-            var blob = new Blob([html], { type: 'text/html' });
-            currentBlobUrl = URL.createObjectURL(blob);
-
-            // Create iframe with blob URL
-            var iframe = document.createElement('iframe');
-            iframe.src = currentBlobUrl;
-            iframe.style.width = '800px';
-            iframe.style.height = '600px';
-            iframe.style.border = 'none';
-            iframe.style.display = 'block';
-            iframe.style.borderRadius = '8px';
-
-            container.innerHTML = '';
-            container.appendChild(iframe);
+            // Create iframe loading player.html — the object tag is in initial HTML inside player.html
+            // so Ruffle's polyfill will detect it (this is exactly how test.html works)
+            container.innerHTML = '<iframe src="' + playerUrl + '" width="800" height="600" style="border:none;display:block;border-radius:8px"></iframe>';
 
             document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Ruffle Player</title>
+    <script>
+        // Read SWF path from URL parameter and inject object tag BEFORE Ruffle loads
+        var params = new URLSearchParams(window.location.search);
+        var swfPath = params.get('swf') || '';
+        var baseUrl = params.get('base') || '';
+
+        // Build the full SWF URL
+        var swfUrl = baseUrl + swfPath;
+        var ruffleJsUrl = baseUrl + 'ruffle/web/ruffle.js';
+
+        // Set Ruffle config
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            autoplay: 'on',
+            unmuteOverlay: 'visible',
+            backgroundColor: '#FFFFFF',
+            letterbox: 'on',
+            contextMenu: 'off',
+            showSwfDownload: false,
+        };
+    </script>
+    <!-- Load Ruffle AFTER config is set -->
+    <script src="ruffle/web/ruffle.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
+        object { display: block; }
+    </style>
+</head>
+<body>
+    <!-- Object tag in initial HTML so Ruffle polyfill detects it -->
+    <script>
+        // Use document.write to inject the object tag before DOM finishes parsing
+        // This ensures Ruffle's polyfill catches it
+        document.write(
+            '<object data="' + swfUrl + '" type="application/x-shockwave-flash" width="800" height="600">' +
+            '<param name="movie" value="' + swfUrl + '">' +
+            '<param name="quality" value="high">' +
+            '<param name="bgcolor" value="#FFFFFF">' +
+            '</object>'
+        );
+    </script>
+</body>
+</html>
