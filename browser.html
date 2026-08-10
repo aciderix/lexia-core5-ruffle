@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
+    <!-- Ruffle polyfill: auto-replaces <object> and <embed> Flash tags -->
     <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -62,14 +63,9 @@
             border-radius: 8px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
             position: relative;
         }
-        #player-container ruffle-embed,
-        #player-container ruffle-object,
-        #player-container ruffle-player {
-            width: 100% !important; height: 100% !important; display: block;
-        }
-        #player-container canvas {
-            width: 100% !important; height: 100% !important;
-        }
+        /* Make any child of player-container fill it */
+        #player-container > * { width: 100% !important; height: 100% !important; display: block; }
+        #player-container canvas { width: 100% !important; height: 100% !important; }
         #placeholder {
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
@@ -89,7 +85,7 @@
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
         #debug-log {
-            position: fixed; bottom: 0; right: 0; width: 350px; max-height: 150px;
+            position: fixed; bottom: 0; right: 0; width: 350px; max-height: 120px;
             background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace; font-size: 11px;
             padding: 8px; overflow-y: auto; z-index: 9999; border-top-left-radius: 8px;
         }
@@ -233,97 +229,45 @@
             const container = document.getElementById('player-container');
             log('Loading: ' + act.path);
 
-            // Clear container
+            // Clear container completely
             container.innerHTML = '';
 
-            // Check if custom element is registered
-            const isRegistered = customElements.get('ruffle-embed') !== undefined;
-            log('ruffle-embed registered: ' + isRegistered);
+            // Approach: Use <object> tag which Ruffle polyfills automatically
+            const obj = document.createElement('object');
+            obj.setAttribute('data', act.path);
+            obj.setAttribute('type', 'application/x-shockwave-flash');
+            obj.style.width = '100%';
+            obj.style.height = '100%';
+            obj.style.display = 'block';
 
-            if (isRegistered) {
-                // Use custom element approach
-                log('Using ruffle-embed custom element');
-                const embed = document.createElement('ruffle-embed');
-                embed.setAttribute('src', act.path);
-                embed.style.width = '100%';
-                embed.style.height = '100%';
-                embed.style.display = 'block';
+            container.appendChild(obj);
+            log('Object tag created with data=' + act.path);
 
-                embed.addEventListener('loaded', () => {
-                    log('SWF loaded event!');
-                    document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
-                });
-
-                embed.addEventListener('error', (e) => {
-                    log('SWF error: ' + (e.detail ? JSON.stringify(e.detail) : 'unknown'));
-                    const isAS3 = !isAS2(currentLevel, currentActivityIndex);
-                    container.innerHTML = '<div id="placeholder"><div><p style="margin-bottom:8px;color:#ef4444">Failed to load</p><p style="font-size:13px;color:#64748b">' + (isAS3 ? 'AS3 SWF - Ruffle may not support it yet' : 'Unknown error') + '</p></div></div>';
-                });
-
-                container.appendChild(embed);
-                log('ruffle-embed appended to container');
-            } else {
-                // Use JS API as fallback
-                log('Custom element not registered, using JS API');
-                const ruffle = window.RufflePlayer;
-                if (ruffle && ruffle.newest) {
-                    const newest = ruffle.newest();
-                    if (newest) {
-                        log('Ruffle version: ' + newest.version);
-                        try {
-                            const player = newest.createPlayer();
-                            container.appendChild(player);
-                            player.style.width = '100%';
-                            player.style.height = '100%';
-                            log('Player element appended, tag: ' + player.tagName);
-
-                            const ruffleInst = player.ruffle ? player.ruffle() : null;
-                            if (ruffleInst) {
-                                ruffleInst.load(act.path).then(() => {
-                                    log('SWF loaded via API!');
-                                    document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
-                                }).catch(e => {
-                                    log('API load error: ' + e.message);
-                                });
-                            } else {
-                                log('No ruffle() method on player, checking other methods...');
-                                log('Player methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(player)).join(', '));
-                                if (player.load) {
-                                    player.load(act.path).then(() => {
-                                        log('SWF loaded via player.load()!');
-                                        document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
-                                    }).catch(e => log('player.load error: ' + e.message));
-                                }
-                            }
-                        } catch(err) {
-                            log('API error: ' + err.message + ' | ' + err.stack);
-                        }
-                    } else {
-                        log('ruffle.newest() returned null');
-                    }
-                } else {
-                    log('Ruffle not available');
-                }
-            }
-
-            // Log container children after 2 seconds
+            // Check if Ruffle polyfilled it after a delay
             setTimeout(() => {
-                log('Container children: ' + container.children.length + ' | innerHTML length: ' + container.innerHTML.length);
-                if (container.children.length > 0) {
-                    log('First child: ' + container.children[0].tagName + ' | w:' + container.children[0].offsetWidth + ' h:' + container.children[0].offsetHeight);
-                    // Check for canvas inside
-                    const canvas = container.querySelector('canvas');
-                    if (canvas) {
-                        log('Canvas found: ' + canvas.width + 'x' + canvas.height);
-                    } else {
-                        log('No canvas in container');
+                const child = container.children[0];
+                if (child) {
+                    log('Child tag: ' + child.tagName + ' | shadow: ' + (!!child.shadowRoot));
+                    if (child.shadowRoot) {
+                        const canvas = child.shadowRoot.querySelector('canvas');
+                        log('Shadow canvas: ' + (canvas ? canvas.width + 'x' + canvas.height : 'none'));
                     }
+                    log('Child dimensions: ' + child.offsetWidth + 'x' + child.offsetHeight);
                 }
+                // Also check for ruffle-player or ruffle-object
+                const rp = container.querySelector('ruffle-player, ruffle-object, ruffle-embed');
+                if (rp) log('Ruffle element found: ' + rp.tagName);
             }, 3000);
 
+            document.getElementById('now-playing').textContent = 'Loading: Activity ' + act.num + '...';
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
             document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
             document.getElementById('btn-reload').disabled = false;
+
+            // Update now-playing after a delay (polyfill is async)
+            setTimeout(() => {
+                document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
+            }, 2000);
         }
 
         document.getElementById('btn-prev').onclick = () => {
