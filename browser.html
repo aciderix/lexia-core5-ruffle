@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
-    <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+    <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -306,8 +306,11 @@
             const loading = document.getElementById('loading-indicator');
             placeholder.style.display = 'none';
             loading.style.display = 'block';
-            const existing = wrapper.querySelector('ruffle-embed, ruffle-object');
+
+            // Remove existing ruffle player
+            const existing = wrapper.querySelector('ruffle-embed, ruffle-object, #ruffle-player');
             if (existing) existing.remove();
+
             window.RufflePlayer = window.RufflePlayer || {};
             window.RufflePlayer.config = {
                 autoplay: 'on',
@@ -317,8 +320,10 @@
                 contextMenu: 'off',
                 showSwfDownload: false,
             };
+
             const embed = document.createElement('ruffle-embed');
-            embed.src = act.path;
+            embed.id = 'ruffle-player';
+            embed.setAttribute('src', act.path);
             embed.style.width = '100%';
             embed.style.height = '100%';
             embed.addEventListener('loaded', () => {
@@ -332,6 +337,7 @@
                 placeholder.innerHTML = '<div><p style="margin-bottom:8px">Failed to load</p><p style="font-size:13px;color:#64748b">' + (isAS3 ? 'AS3 SWF - Ruffle may not support it yet' : 'Unknown error') + '</p></div>';
             });
             wrapper.appendChild(embed);
+
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
             document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
             document.getElementById('btn-reload').disabled = false;
