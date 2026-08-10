@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>SWF Content Test</title>
+    <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #fff; font-family: monospace; }
+        #player { width: 800px; height: 600px; margin: 20px auto; }
+        #info { text-align: center; padding: 10px; }
+        select { font-size: 16px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>SWF Content Player</h2>
+        <select id="swfSelect" onchange="loadSWF(this.value)">
+            <option value="">Choose a SWF...</option>
+        </select>
+        <div id="status"></div>
+    </div>
+    <div id="player"></div>
+    <script>
+        // List of AS2 SWFs to test
+        const swfList = [
+            'content/2/swf_0200.swf',
+            'content/2/swf_0201.swf',
+            'content/2/swf_0202.swf',
+            'content/9/swf_0900.swf',
+            'content/9/swf_0901.swf',
+            'content/1/swf_0102.swf',
+            'content/3/swf_0300.swf',
+            'content/10/swf_1000.swf',
+            'content/5/swf_0500.swf',
+        ];
+        const sel = document.getElementById('swfSelect');
+        swfList.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            sel.appendChild(opt);
+        });
+
+        function loadSWF(path) {
+            const player = document.getElementById('player');
+            player.innerHTML = '';
+            document.getElementById('status').textContent = 'Loading ' + path + '...';
+            const ruffle = window.RufflePlayer = window.RufflePlayer || {};
+            ruffle.config = {
+                autoplay: 'on',
+                unmuteOverlay: 'visible',
+                backgroundColor: '#000000',
+                letterbox: 'on',
+            };
+            const el = document.createElement('ruffle-embed');
+            el.src = path;
+            el.width = 800;
+            el.height = 600;
+            player.appendChild(el);
+            el.addEventListener('loaded', () => {
+                document.getElementById('status').textContent = 'Loaded: ' + path;
+            });
+            el.addEventListener('error', (e) => {
+                document.getElementById('status').textContent = 'Error: ' + e.detail;
+            });
+        }
+    </script>
+</body>
+</html>
