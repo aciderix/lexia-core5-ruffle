@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
-    <!-- Ruffle polyfill: auto-replaces <object> and <embed> Flash tags -->
     <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -59,13 +58,10 @@
             justify-content: center; padding: 20px; position: relative;
         }
         #player-container {
-            width: 100%; max-width: 1000px; aspect-ratio: 4/3; background: #000;
+            width: 100%; max-width: 1000px; aspect-ratio: 4/3; background: #fff;
             border-radius: 8px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
             position: relative;
         }
-        /* Make any child of player-container fill it */
-        #player-container > * { width: 100% !important; height: 100% !important; display: block; }
-        #player-container canvas { width: 100% !important; height: 100% !important; }
         #placeholder {
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
@@ -84,11 +80,6 @@
         #sidebar::-webkit-scrollbar { width: 6px; }
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        #debug-log {
-            position: fixed; bottom: 0; right: 0; width: 350px; max-height: 120px;
-            background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace; font-size: 11px;
-            padding: 8px; overflow-y: auto; z-index: 9999; border-top-left-radius: 8px;
-        }
     </style>
 </head>
 <body>
@@ -113,18 +104,12 @@
             </div>
         </div>
     </main>
-    <div id="debug-log"></div>
     <script>
-        function log(msg) {
-            const el = document.getElementById('debug-log');
-            el.innerHTML = new Date().toLocaleTimeString() + ' ' + msg + '<br>' + el.innerHTML;
-        }
-
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             autoplay: 'on',
             unmuteOverlay: 'visible',
-            backgroundColor: '#000000',
+            backgroundColor: '#FFFFFF',
             letterbox: 'on',
             contextMenu: 'off',
             showSwfDownload: false,
@@ -143,11 +128,9 @@
                 document.getElementById('status-badge').textContent =
                     Object.values(data).reduce((s, a) => s + a.length, 0) + ' activities';
                 buildSidebar(data);
-                log('Catalog loaded');
             })
             .catch(e => {
                 document.getElementById('status-badge').textContent = 'Catalog failed';
-                log('Catalog error: ' + e.message);
                 buildFallback();
             });
 
@@ -227,47 +210,30 @@
 
         function loadActivity(act) {
             const container = document.getElementById('player-container');
-            log('Loading: ' + act.path);
 
-            // Clear container completely
+            // Clear container
             container.innerHTML = '';
 
-            // Approach: Use <object> tag which Ruffle polyfills automatically
+            // Get container dimensions in pixels (Ruffle needs explicit pixel sizes)
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            // Create object tag with explicit pixel dimensions
             const obj = document.createElement('object');
             obj.setAttribute('data', act.path);
             obj.setAttribute('type', 'application/x-shockwave-flash');
-            obj.style.width = '100%';
-            obj.style.height = '100%';
+            obj.setAttribute('width', w);
+            obj.setAttribute('height', h);
+            obj.style.width = w + 'px';
+            obj.style.height = h + 'px';
             obj.style.display = 'block';
 
             container.appendChild(obj);
-            log('Object tag created with data=' + act.path);
 
-            // Check if Ruffle polyfilled it after a delay
-            setTimeout(() => {
-                const child = container.children[0];
-                if (child) {
-                    log('Child tag: ' + child.tagName + ' | shadow: ' + (!!child.shadowRoot));
-                    if (child.shadowRoot) {
-                        const canvas = child.shadowRoot.querySelector('canvas');
-                        log('Shadow canvas: ' + (canvas ? canvas.width + 'x' + canvas.height : 'none'));
-                    }
-                    log('Child dimensions: ' + child.offsetWidth + 'x' + child.offsetHeight);
-                }
-                // Also check for ruffle-player or ruffle-object
-                const rp = container.querySelector('ruffle-player, ruffle-object, ruffle-embed');
-                if (rp) log('Ruffle element found: ' + rp.tagName);
-            }, 3000);
-
-            document.getElementById('now-playing').textContent = 'Loading: Activity ' + act.num + '...';
+            document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
             document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
             document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
             document.getElementById('btn-reload').disabled = false;
-
-            // Update now-playing after a delay (polyfill is async)
-            setTimeout(() => {
-                document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
-            }, 2000);
         }
 
         document.getElementById('btn-prev').onclick = () => {
