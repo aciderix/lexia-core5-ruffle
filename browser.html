@@ -4,6 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Core5 — Content Browser</title>
+    <script>
+        // Read SWF path from URL parameter BEFORE Ruffle loads
+        var params = new URLSearchParams(window.location.search);
+        var swfPath = params.get('swf') || '';
+        var currentLevel = params.get('level') || '';
+
+        // Set Ruffle config
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            autoplay: 'on',
+            unmuteOverlay: 'visible',
+            backgroundColor: '#FFFFFF',
+            letterbox: 'on',
+            contextMenu: 'off',
+            showSwfDownload: false,
+        };
+    </script>
+    <script src="ruffle/web/ruffle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -13,45 +31,46 @@
         }
         header {
             background: linear-gradient(135deg, #1e3a5f, #2563eb);
-            padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
-        header h1 { font-size: 22px; font-weight: 600; color: #fff; }
-        header .subtitle { font-size: 13px; color: #93c5fd; margin-top: 2px; }
+        header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+        header .subtitle { font-size: 12px; color: #93c5fd; margin-top: 2px; }
         #status-badge {
             font-size: 12px; padding: 4px 12px; border-radius: 12px;
             background: rgba(255,255,255,0.15); color: #bfdbfe;
         }
         main { display: flex; flex: 1; overflow: hidden; }
         #sidebar {
-            width: 280px; background: #1e293b; border-right: 1px solid #334155;
+            width: 240px; background: #1e293b; border-right: 1px solid #334155;
             overflow-y: auto; flex-shrink: 0;
         }
         .level-group { border-bottom: 1px solid #334155; }
         .level-header {
-            padding: 14px 18px; cursor: pointer; display: flex; align-items: center;
+            padding: 12px 16px; cursor: pointer; display: flex; align-items: center;
             justify-content: space-between; transition: background 0.15s; font-weight: 600;
-            font-size: 15px; color: #cbd5e1;
+            font-size: 14px; color: #cbd5e1;
         }
         .level-header:hover { background: #334155; }
         .level-header.active { background: #2563eb; color: #fff; }
         .level-header .count {
-            font-size: 12px; font-weight: 400; color: #64748b;
+            font-size: 11px; font-weight: 400; color: #64748b;
             background: #334155; padding: 2px 8px; border-radius: 8px;
         }
         .level-header.active .count { background: rgba(255,255,255,0.2); color: #fff; }
         .level-items { display: none; padding: 4px 0; }
         .level-items.show { display: block; }
         .activity-item {
-            padding: 8px 18px 8px 36px; cursor: pointer; font-size: 13px; color: #94a3b8;
+            padding: 6px 16px 6px 32px; cursor: pointer; font-size: 12px; color: #94a3b8;
             display: flex; align-items: center; justify-content: space-between; transition: all 0.15s;
+            text-decoration: none;
         }
         .activity-item:hover { background: #334155; color: #e2e8f0; }
         .activity-item.active { background: #1e40af; color: #fff; }
-        .activity-item .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+        .activity-item .badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
         .badge-as2 { background: #059669; color: #d1fae5; }
         .badge-as3 { background: #b45309; color: #fef3c7; }
-        .activity-item .size { font-size: 11px; color: #475569; }
+        .activity-item .size { font-size: 10px; color: #475569; }
         #player-area {
             flex: 1; display: flex; flex-direction: column; align-items: center;
             justify-content: center; padding: 20px; overflow: auto;
@@ -66,17 +85,17 @@
             display: flex; align-items: center; justify-content: center; height: 100%;
             color: #475569; font-size: 16px; text-align: center;
         }
-        #player-controls { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
+        #player-controls { margin-top: 12px; display: flex; gap: 10px; align-items: center; }
         .btn {
-            background: #334155; color: #e2e8f0; border: none; padding: 10px 20px;
-            border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
-            transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+            background: #334155; color: #e2e8f0; border: none; padding: 8px 16px;
+            border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+            transition: all 0.15s;
         }
         .btn:hover { background: #475569; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-primary { background: #2563eb; }
         .btn-primary:hover { background: #1d4ed8; }
-        #now-playing { color: #64748b; font-size: 13px; }
+        #now-playing { color: #64748b; font-size: 12px; }
         #sidebar::-webkit-scrollbar { width: 6px; }
         #sidebar::-webkit-scrollbar-track { background: #1e293b; }
         #sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
@@ -94,7 +113,21 @@
         <div id="sidebar"></div>
         <div id="player-area">
             <div id="player-container">
-                <div id="placeholder">Select an activity from the sidebar to start</div>
+                <script>
+                    // If a SWF path is specified, inject <object> tag NOW via document.write()
+                    // This must happen during initial HTML parsing so Ruffle's polyfill detects it
+                    if (swfPath) {
+                        document.write(
+                            '<object data="' + swfPath + '" type="application/x-shockwave-flash" width="800" height="600">' +
+                            '<param name="movie" value="' + swfPath + '">' +
+                            '<param name="quality" value="high">' +
+                            '<param name="bgcolor" value="#FFFFFF">' +
+                            '</object>'
+                        );
+                    } else {
+                        document.write('<div id="placeholder">Select an activity from the sidebar to start</div>');
+                    }
+                </script>
             </div>
             <div id="player-controls">
                 <button class="btn" id="btn-prev" disabled>← Prev</button>
@@ -107,21 +140,24 @@
     <script>
         var BASE_URL = window.location.href.replace(/browser\.html.*$/, '');
 
-        const as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
-        let catalog = {};
-        let currentLevel = null;
-        let currentActivityIndex = -1;
-        let currentActivities = [];
+        var as2Levels = {0:1,1:21,2:98,3:30,4:2,5:6,6:3,8:10,9:92,10:16};
+        var catalog = {};
+        var currentActivities = [];
+        var currentActivityIndex = -1;
 
         fetch('swf/catalog.json')
-            .then(r => r.json())
-            .then(data => {
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
                 catalog = data;
                 document.getElementById('status-badge').textContent =
-                    Object.values(data).reduce((s, a) => s + a.length, 0) + ' activities';
+                    Object.values(data).reduce(function(s, a) { return s + a.length; }, 0) + ' activities';
                 buildSidebar(data);
+                // If we loaded a specific SWF, find it in the catalog and set up controls
+                if (swfPath) {
+                    findCurrentActivity(data);
+                }
             })
-            .catch(e => {
+            .catch(function(e) {
                 document.getElementById('status-badge').textContent = 'Catalog failed';
                 buildFallback();
             });
@@ -131,41 +167,42 @@
         }
 
         function buildSidebar(data) {
-            const sidebar = document.getElementById('sidebar');
-            const levels = Object.keys(data).map(Number).sort((a,b) => a - b);
-            levels.forEach(level => {
-                const activities = data[level];
-                const group = document.createElement('div');
+            var sidebar = document.getElementById('sidebar');
+            var levels = Object.keys(data).map(Number).sort(function(a,b) { return a - b; });
+            levels.forEach(function(level) {
+                var activities = data[level];
+                var group = document.createElement('div');
                 group.className = 'level-group';
-                const header = document.createElement('div');
+                var header = document.createElement('div');
                 header.className = 'level-header';
+                if (String(level) === currentLevel) header.classList.add('active');
                 header.innerHTML = 'Level ' + level + ' <span class="count">' + activities.length + '</span>';
-                header.onclick = () => {
-                    const items = group.querySelector('.level-items');
-                    document.querySelectorAll('.level-items').forEach(el => { if (el !== items) el.classList.remove('show'); });
-                    document.querySelectorAll('.level-header').forEach(el => { if (el !== header) el.classList.remove('active'); });
+                header.onclick = function() {
+                    var items = group.querySelector('.level-items');
+                    document.querySelectorAll('.level-items').forEach(function(el) { if (el !== items) el.classList.remove('show'); });
+                    document.querySelectorAll('.level-header').forEach(function(el) { if (el !== header) el.classList.remove('active'); });
                     items.classList.toggle('show');
                     header.classList.toggle('active');
-                    currentLevel = level;
-                    currentActivities = activities;
                 };
-                const items = document.createElement('div');
+                // Auto-expand the current level
+                var items = document.createElement('div');
                 items.className = 'level-items';
-                activities.forEach((act, idx) => {
-                    const item = document.createElement('div');
+                if (String(level) === currentLevel) items.classList.add('show');
+                activities.forEach(function(act, idx) {
+                    var item = document.createElement('a');
                     item.className = 'activity-item';
-                    const as2 = isAS2(level, idx);
-                    const badge = as2
-                        ? '<span class="badge badge-as2">AS2</span>'
-                        : '<span class="badge badge-as3">AS3</span>';
-                    const sizeKB = (act.size / 1024).toFixed(0);
-                    item.innerHTML = '<span>Activity ' + act.num + '</span><span style="display:flex;align-items:center;gap:4px">' + badge + '<span class="size">' + sizeKB + 'KB</span></span>';
-                    item.onclick = () => {
-                        document.querySelectorAll('.activity-item').forEach(el => el.classList.remove('active'));
+                    item.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + level;
+                    if (act.path === swfPath) {
                         item.classList.add('active');
                         currentActivityIndex = idx;
-                        loadActivity(act);
-                    };
+                        currentActivities = activities;
+                    }
+                    var as2 = isAS2(level, idx);
+                    var badge = as2
+                        ? '<span class="badge badge-as2">AS2</span>'
+                        : '<span class="badge badge-as3">AS3</span>';
+                    var sizeKB = (act.size / 1024).toFixed(0);
+                    item.innerHTML = '<span>Activity ' + act.num + '</span><span style="display:flex;align-items:center;gap:4px">' + badge + '<span class="size">' + sizeKB + 'KB</span></span>';
                     items.appendChild(item);
                 });
                 group.appendChild(header);
@@ -174,24 +211,45 @@
             });
         }
 
+        function findCurrentActivity(data) {
+            // Find which level/activity matches the current swfPath
+            var levels = Object.keys(data).map(Number).sort(function(a,b) { return a - b; });
+            for (var i = 0; i < levels.length; i++) {
+                var level = levels[i];
+                var activities = data[level];
+                for (var j = 0; j < activities.length; j++) {
+                    if (activities[j].path === swfPath) {
+                        currentActivities = activities;
+                        currentActivityIndex = j;
+                        currentLevel = String(level);
+                        document.getElementById('now-playing').textContent = 'Playing: Activity ' + activities[j].num;
+                        document.getElementById('btn-prev').disabled = j <= 0;
+                        document.getElementById('btn-next').disabled = j >= activities.length - 1;
+                        document.getElementById('btn-reload').disabled = false;
+                        return;
+                    }
+                }
+            }
+        }
+
         function buildFallback() {
-            const sidebar = document.getElementById('sidebar');
-            for (let level = 0; level <= 10; level++) {
-                const group = document.createElement('div');
+            var sidebar = document.getElementById('sidebar');
+            for (var level = 0; level <= 10; level++) {
+                var group = document.createElement('div');
                 group.className = 'level-group';
-                const header = document.createElement('div');
+                var header = document.createElement('div');
                 header.className = 'level-header';
                 header.textContent = 'Level ' + level;
-                header.onclick = () => { group.querySelector('.level-items').classList.toggle('show'); };
-                const items = document.createElement('div');
+                header.onclick = function() { group.querySelector('.level-items').classList.toggle('show'); };
+                var items = document.createElement('div');
                 items.className = 'level-items';
-                for (let i = 0; i < 100; i++) {
-                    const num = level * 100 + i;
-                    const path = 'swf/content/' + level + '/swf_' + String(num).padStart(4, '0') + '.swf';
-                    const item = document.createElement('div');
+                for (var i = 0; i < 100; i++) {
+                    var num = level * 100 + i;
+                    var path = 'swf/content/' + level + '/swf_' + String(num).padStart(4, '0') + '.swf';
+                    var item = document.createElement('a');
                     item.className = 'activity-item';
+                    item.href = 'browser.html?swf=' + encodeURIComponent(path) + '&level=' + level;
                     item.textContent = 'Activity ' + num;
-                    item.onclick = () => loadActivity({ path, num });
                     items.appendChild(item);
                 }
                 group.appendChild(header);
@@ -200,52 +258,21 @@
             }
         }
 
-        function loadActivity(act) {
-            const container = document.getElementById('player-container');
-
-            // Build URL for player.html — uses document.write() to inject <object>
-            // before Ruffle scans the DOM (polyfill only detects initial HTML objects)
-            var playerUrl = BASE_URL + 'player.html?swf=' + encodeURIComponent(act.path)
-                + '&base=' + encodeURIComponent(BASE_URL);
-
-            // Use createElement instead of innerHTML to avoid HTML parsing issues with &
-            container.innerHTML = ''; // Clear previous content
-
-            var iframe = document.createElement('iframe');
-            iframe.src = playerUrl;
-            iframe.style.width = '800px';
-            iframe.style.height = '600px';
-            iframe.style.border = 'none';
-            iframe.style.display = 'block';
-            iframe.style.borderRadius = '8px';
-            container.appendChild(iframe);
-
-            document.getElementById('now-playing').textContent = 'Playing: Activity ' + act.num;
-            document.getElementById('btn-prev').disabled = currentActivityIndex <= 0;
-            document.getElementById('btn-next').disabled = currentActivityIndex >= currentActivities.length - 1;
-            document.getElementById('btn-reload').disabled = false;
-        }
-
-        document.getElementById('btn-prev').onclick = () => {
+        // Navigation buttons — navigate to prev/next activity
+        document.getElementById('btn-prev').onclick = function() {
             if (currentActivityIndex > 0) {
-                currentActivityIndex--;
-                const act = currentActivities[currentActivityIndex];
-                document.querySelectorAll('.activity-item').forEach(el => el.classList.remove('active'));
-                document.querySelectorAll('.level-items.show .activity-item')[currentActivityIndex].classList.add('active');
-                loadActivity(act);
+                var act = currentActivities[currentActivityIndex - 1];
+                window.location.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + currentLevel;
             }
         };
-        document.getElementById('btn-next').onclick = () => {
+        document.getElementById('btn-next').onclick = function() {
             if (currentActivityIndex < currentActivities.length - 1) {
-                currentActivityIndex++;
-                const act = currentActivities[currentActivityIndex];
-                document.querySelectorAll('.activity-item').forEach(el => el.classList.remove('active'));
-                document.querySelectorAll('.level-items.show .activity-item')[currentActivityIndex].classList.add('active');
-                loadActivity(act);
+                var act = currentActivities[currentActivityIndex + 1];
+                window.location.href = 'browser.html?swf=' + encodeURIComponent(act.path) + '&level=' + currentLevel;
             }
         };
-        document.getElementById('btn-reload').onclick = () => {
-            if (currentActivityIndex >= 0) loadActivity(currentActivities[currentActivityIndex]);
+        document.getElementById('btn-reload').onclick = function() {
+            window.location.reload();
         };
     </script>
 </body>
